@@ -1,5 +1,6 @@
-# Project Structure
+## Project Structure:
 
+```
 AndrewAI-LearningAssistant/
    ├── src/
     │   ├── config/            # Configuration files
@@ -70,4 +71,6 @@ AndrewAI-LearningAssistant/
     ├── .gitignore             # Git ignore file
     ├── package.json            # Node.js project dependencies
     ├── README.md               # Project documentation
-    └── server.js               # Entry point for the application
+    └── server.js               # Entry point for the application 
+
+```
