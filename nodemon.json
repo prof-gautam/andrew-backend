@@ -1,0 +1,7 @@
+{
+    "watch": ["server.js", "src"],
+    "ext": "js,json",
+    "ignore": ["node_modules", "logs"],
+    "exec": "node --inspect=9229 server.js"
+  }
+  
