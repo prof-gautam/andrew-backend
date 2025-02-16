@@ -18,3 +18,11 @@ const generateModuleContent = async (prompt) => {
 };
 
 module.exports = { generateModuleContent };
+
+
+// Usage Example:
+// const { generateModuleContent } = require('../utils/openaiHelper');
+
+// generateModuleContent('Explain machine learning in simple terms')
+//     .then(response => console.log(response))
+//     .catch(error => console.error(error));
