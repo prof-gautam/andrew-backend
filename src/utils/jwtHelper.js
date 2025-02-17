@@ -1,29 +1,47 @@
-// Import jsonwebtoken for token management
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/appConfig');
 
-// Generate JWT token with given payload and expiration
-const generateToken = (payload, expiresIn = '1h') => {
-    return jwt.sign(payload, jwtSecret, { expiresIn });
+/**
+ * 🔐 Generate JWT Token
+ * @param {Object} payload - Data to encode (e.g., userId, role)
+ * @param {string} expiresIn - Expiration duration (e.g., '15m', '7d')
+ * @returns {string} - Signed JWT token
+ */
+const generateToken = (payload, expiresIn = '15m') => {
+    try {
+        return jwt.sign(payload, jwtSecret, { expiresIn });
+    } catch (error) {
+        console.error('❌ Error generating token:', error.message);
+        throw new Error('Token generation failed.');
+    }
 };
 
-// Verify and decode JWT token
+/**
+ * 🔍 Verify JWT Token
+ * @param {string} token - JWT token to verify
+ * @returns {Object|null} - Decoded payload if valid, else null
+ */
 const verifyToken = (token) => {
     try {
         return jwt.verify(token, jwtSecret);
     } catch (error) {
-        return null; // Return null if verification fails
+        console.error('❌ Token verification failed:', error.message);
+        return null;
     }
 };
 
-module.exports = { generateToken, verifyToken };
+/**
+ * 🛠️ Decode JWT Token without verification
+ * @param {string} token - JWT token to decode
+ * @returns {Object|null} - Decoded payload if valid, else null
+ */
+const decodeToken = (token) => {
+    try {
+        return jwt.decode(token);
+    } catch (error) {
+        console.error('❌ Failed to decode token:', error.message);
+        return null;
+    }
+};
 
-
-// Usage Example:
-    // const { generateToken, verifyToken } = require('../utils/jwtHelper');
-
-    // const token = generateToken({ userId: '1234', role: 'student' });
-    // console.log('Generated Token:', token);
-
-    // const decoded = verifyToken(token);
-    // console.log('Decoded Token:', decoded);
+module.exports = { generateToken, verifyToken, decodeToken };

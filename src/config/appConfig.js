@@ -7,6 +7,8 @@ module.exports = {
 
     // JWT Config
     jwtSecret: process.env.JWT_SECRET || 'default_secret',
+    jwtExpiryAccess: process.env.JWT_EXPIRY_ACCESS || '15m',
+    jwtExpiryRefresh: process.env.JWT_EXPIRY_REFRESH || '7d',
 
     // Database Config
     databaseUri: process.env.MONGO_URI,
@@ -26,5 +28,14 @@ module.exports = {
     smtpPass: process.env.SMTP_PASS,
 
     // OTP Config
-    otpExpirationMinutes: parseInt(process.env.OTP_EXPIRATION_MINUTES) || 10
+    otpExpirationMinutes: parseInt(process.env.OTP_EXPIRATION_MINUTES) || 10,
+
+    // Bcrypt Salt Rounds
+    saltRounds: parseInt(process.env.SALT_ROUNDS) || 10,
+
+    // AWS Config
+    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    awsRegion: process.env.AWS_REGION,
+    awsBucketName: process.env.AWS_BUCKET_NAME
 };
