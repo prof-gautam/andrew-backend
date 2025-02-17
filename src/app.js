@@ -25,11 +25,12 @@ app.use(morgan('dev'));
 app.get('/api/v1/health', (req, res) => {
     res.status(200).json({
         status: 'success',
-        message: 'App is running smoothly!',
+        message: 'I’m alive… but just like your hopes and dreams, it’s only a matter of time before I crash.',
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
     });
 });
+
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
