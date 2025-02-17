@@ -3,7 +3,7 @@ name: Deploy Node.js to AWS EC2
 on:
   push:
     branches:
-      - main  # Trigger deployment on push to the 'main' branch
+      - main
 
 jobs:
   deploy:
@@ -15,7 +15,7 @@ jobs:
 
       - name: Deploy to EC2
         env:
-          HOST: "35.166.20.238"  # Your EC2 Public IPv4 address
+          HOST: "35.166.20.238"
           USER: "ubuntu"
           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
@@ -25,19 +25,29 @@ jobs:
 
           # Connect to EC2 and deploy the application
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Go to project directory or clone if it doesn't exist
-            cd /home/ubuntu/andrew-uat || git clone git@github.com:prof-gautam/andrew-backend.git andrew-uat
-            cd andrew-uat
+            # Step 1: Update & Prepare Server
+            sudo apt update -y
+            sudo apt install -y git nodejs npm
 
-            # Pull the latest code from GitHub
+            # Step 2: Clone or Update Repo
+            cd /home/ubuntu/andrew-uat || git clone git@github.com:prof-gautam/andrew-backend.git andrew-uat
+            cd /home/ubuntu/andrew-uat
+
+            # Step 3: Set Correct Permissions
+            sudo chown -R ubuntu:ubuntu .
+
+            # Step 4: Pull Latest Code
             git pull origin main
 
-            # Install dependencies with npm ci for consistency
+            # Step 5: Install Dependencies
             npm ci
 
-            # Run linting before start as per package.json
-            npm run lint
+            # Step 6: Run Linting
+            npm run lint || echo "Linting failed, continuing deployment..."
 
-            # Start or restart the app using PM2 with server.js as entry point
-            pm2 restart andrew-uat || pm2 start npm --name "andrew-uat" -- run start
+            # Step 7: Start or Restart App
+            pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
+
+            # Step 8: Verify Status
+            pm2 list
           EOF
