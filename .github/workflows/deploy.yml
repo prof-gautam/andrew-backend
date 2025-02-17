@@ -41,31 +41,18 @@ jobs:
             # Step 4: Pull the latest code
             git pull origin main
 
-            # Step 5: Install dependencies (fallback to npm install if lockfile is missing)
-            if [ -f "package-lock.json" ]; then
-              npm ci
-            else
-              npm install
-            fi
+            # Step 5: Install dependencies
+            npm install
 
-            # Step 6: Ensure .env file exists
+            # Step 6: Ensure .env exists (create if missing)
             if [ ! -f ".env" ]; then
               echo "NODE_ENV=production" >> .env
               echo "PORT=3000" >> .env
-              echo "DB_URI=${{ secrets.DB_URI }}" >> .env
-              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             fi
 
-            # Step 7: Run linting
-            npm run lint || echo "Linting failed. Proceeding with deployment."
+            # Step 7: Start or restart the app
+            pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
 
-            # Step 8: Start or reload the app
-            if pm2 list | grep -q "andrew-uat"; then
-              pm2 reload andrew-uat
-            else
-              pm2 start server.js --name "andrew-uat"
-            fi
-
-            # Step 9: Verify deployment
+            # Step 8: Verify status
             pm2 list
           EOF
