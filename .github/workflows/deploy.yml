@@ -3,7 +3,7 @@ name: Deploy Node.js to AWS EC2
 on:
   push:
     branches:
-      - main  # Change if using a different branch
+      - main  # Trigger deployment on push to the 'main' branch
 
 jobs:
   deploy:
@@ -15,21 +15,29 @@ jobs:
 
       - name: Deploy to EC2
         env:
-          HOST: "your-ec2-public-ip"
+          HOST: "35.166.20.238"  # Your EC2 Public IPv4 address
           USER: "ubuntu"
           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
+          # Create the SSH key file
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
-          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Go to project directory or clone if not exists
-            cd /home/ubuntu/andrew-uat || git clone git@github.com:prof-gautam/andrew-backend.git
-            cd andrew-uat
-            # Pull the latest code
-            git pull origin main
-            # Install dependencies
-            npm install
-            # Restart or start app with PM2
-            pm2 restart app || pm2 start app.js --name "andrew-uat"
-          EOF
 
+          # Connect to EC2 and deploy the application
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
+            # Go to project directory or clone if it doesn't exist
+            cd /home/ubuntu/andrew-uat || git clone git@github.com:prof-gautam/andrew-backend.git andrew-uat
+            cd andrew-uat
+
+            # Pull the latest code from GitHub
+            git pull origin main
+
+            # Install dependencies with npm ci for consistency
+            npm ci
+
+            # Run linting before start as per package.json
+            npm run lint
+
+            # Start or restart the app using PM2 with server.js as entry point
+            pm2 restart andrew-uat || pm2 start npm --name "andrew-uat" -- run start
+          EOF
