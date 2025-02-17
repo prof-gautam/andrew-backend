@@ -25,34 +25,28 @@ jobs:
 
           # Connect to EC2 and deploy the application
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Step 1: Update server and install dependencies
+            # Update server and install dependencies
             sudo apt update -y
             sudo apt install -y git nodejs npm
 
-            # Step 2: Clone or update the repository
+            # Clone or update the repository
             if [ ! -d "/home/ubuntu/andrew-uat" ]; then
               git clone git@github.com:prof-gautam/andrew-backend.git /home/ubuntu/andrew-uat
             fi
             cd /home/ubuntu/andrew-uat
 
-            # Step 3: Set correct permissions
+            # Set correct permissions
             sudo chown -R ubuntu:ubuntu .
 
-            # Step 4: Pull the latest code
+            # Pull the latest code
             git pull origin main
 
-            # Step 5: Install dependencies
+            # Install dependencies
             npm install
 
-            # Step 6: Ensure .env exists (create if missing)
-            if [ ! -f ".env" ]; then
-              echo "NODE_ENV=production" >> .env
-              echo "PORT=3000" >> .env
-            fi
-
-            # Step 7: Start or restart the app
+            # Start or restart the application
             pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
 
-            # Step 8: Verify status
+            # Check status
             pm2 list
           EOF
