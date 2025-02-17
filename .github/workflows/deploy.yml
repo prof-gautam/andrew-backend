@@ -25,29 +25,47 @@ jobs:
 
           # Connect to EC2 and deploy the application
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Step 1: Update & Prepare Server
+            # Step 1: Update server and install dependencies
             sudo apt update -y
             sudo apt install -y git nodejs npm
 
-            # Step 2: Clone or Update Repo
-            cd /home/ubuntu/andrew-uat || git clone git@github.com:prof-gautam/andrew-backend.git andrew-uat
+            # Step 2: Clone or update the repository
+            if [ ! -d "/home/ubuntu/andrew-uat" ]; then
+              git clone git@github.com:prof-gautam/andrew-backend.git /home/ubuntu/andrew-uat
+            fi
             cd /home/ubuntu/andrew-uat
 
-            # Step 3: Set Correct Permissions
+            # Step 3: Set correct permissions
             sudo chown -R ubuntu:ubuntu .
 
-            # Step 4: Pull Latest Code
+            # Step 4: Pull the latest code
             git pull origin main
 
-            # Step 5: Install Dependencies
-            npm ci
+            # Step 5: Install dependencies (fallback to npm install if lockfile is missing)
+            if [ -f "package-lock.json" ]; then
+              npm ci
+            else
+              npm install
+            fi
 
-            # Step 6: Run Linting
-            npm run lint || echo "Linting failed, continuing deployment..."
+            # Step 6: Ensure .env file exists
+            if [ ! -f ".env" ]; then
+              echo "NODE_ENV=production" >> .env
+              echo "PORT=3000" >> .env
+              echo "DB_URI=${{ secrets.DB_URI }}" >> .env
+              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            fi
 
-            # Step 7: Start or Restart App
-            pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
+            # Step 7: Run linting
+            npm run lint || echo "Linting failed. Proceeding with deployment."
 
-            # Step 8: Verify Status
+            # Step 8: Start or reload the app
+            if pm2 list | grep -q "andrew-uat"; then
+              pm2 reload andrew-uat
+            else
+              pm2 start server.js --name "andrew-uat"
+            fi
+
+            # Step 9: Verify deployment
             pm2 list
           EOF
