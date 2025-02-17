@@ -23,9 +23,12 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
+          # Test SSH connection
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST "echo '✅ SSH Authentication Successful!'"
+
           # Connect to EC2 and deploy the application
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Update server and install dependencies
+            # Update system and install required packages
             sudo apt update -y
             sudo apt install -y git nodejs npm
 
@@ -47,6 +50,6 @@ jobs:
             # Start or restart the application
             pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
 
-            # Check status
+            # Show status
             pm2 list
           EOF
