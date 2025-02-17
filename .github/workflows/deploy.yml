@@ -19,35 +19,28 @@ jobs:
           USER: "ubuntu"
           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
-          # Create the SSH key file
+          # Create SSH key file
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # Test SSH connection
-          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST "echo '✅ SSH Authentication Successful!'"
-
-          # Connect to EC2 and deploy the application
+          # Connect to EC2 and deploy
           ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
-            # Update system and install required packages
+            # Update system
             sudo apt update -y
-            sudo apt install -y git nodejs npm
 
-            # Clone or update the repository
+            # Clone/update repository
             if [ ! -d "/home/ubuntu/andrew-uat" ]; then
               git clone git@github.com:prof-gautam/andrew-backend.git /home/ubuntu/andrew-uat
             fi
             cd /home/ubuntu/andrew-uat
 
-            # Set correct permissions
-            sudo chown -R ubuntu:ubuntu .
-
-            # Pull the latest code
+            # Pull latest code
             git pull origin main
 
             # Install dependencies
             npm install
 
-            # Start or restart the application
+            # Start/Restart app
             pm2 restart andrew-uat || pm2 start server.js --name "andrew-uat"
 
             # Show status
