@@ -1,0 +1,35 @@
+name: Deploy Node.js to AWS EC2
+
+on:
+  push:
+    branches:
+      - main  # Change if using a different branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to EC2
+        env:
+          HOST: "your-ec2-public-ip"
+          USER: "ubuntu"
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $USER@$HOST << 'EOF'
+            # Go to project directory or clone if not exists
+            cd /home/ubuntu/andrew-uat || git clone git@github.com:GautamPhuyal/your-repo.git andrew-uat
+            cd andrew-uat
+            # Pull the latest code
+            git pull origin main
+            # Install dependencies
+            npm install
+            # Restart or start app with PM2
+            pm2 restart app || pm2 start app.js --name "andrew-uat"
+          EOF
+
