@@ -13,3 +13,8 @@ Update User Profile,PUT,/api/v1/users/profile,Update profile image or name,Yes,N
 Get User Details,GET,/api/v1/users/me,Retrieve the logged-in user's details,Yes,None,None,"{ ""status"": ""success"", ""user"": {""name"": ""John Doe"", ""email"": ""user@example.com"", ""profileImage"": ""s3_url""} }",200,"401, 404"
 Delete User,DELETE,/api/v1/users/:id,Delete a user by ID,Yes,None,None,"{ ""status"": ""success"", ""message"": ""User deleted successfully."" }",200,"401, 404"
 Get All Users,GET,/api/v1/users,Retrieve a list of all users,Yes,Admin,None,"{ ""status"": ""success"", ""users"": [{""name"": ""John"", ""email"": ""user@example.com""}] }",200,"403, 401"
+API Name,Method,Endpoint,Description,Auth Required?,Request Body,Response (Success),Success Code,Error Code
+Submit Onboarding,POST,/api/v1/users/me/onboarding,Stores user onboarding preferences,Yes,"{ ""userType"": ""Student"", ""primaryGoals"": [""Prepare for exams""], ""preferredFormats"": [""Videos""], ""studyHoursPerWeek"": 5, ""enableReminders"": true }","{ ""status"": ""success"", ""message"": ""Onboarding completed successfully."" }",201,"400,409,500"
+Get Onboarding,GET,/api/v1/users/me/onboarding,Retrieves user onboarding data,Yes,None,"{ ""status"": ""success"", ""onboarding"": {...} }",200,"401,404,500"
+Update Onboarding,PUT,/api/v1/users/me/onboarding,Updates user onboarding preferences,Yes,"{ ""studyHoursPerWeek"": 10 }","{ ""status"": ""success"", ""message"": ""Onboarding updated successfully."" }",200,"400,404,500"
+

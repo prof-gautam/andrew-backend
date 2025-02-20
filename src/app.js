@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
+const onboardingRoutes = require('./routes/onboardingRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -35,6 +36,7 @@ app.get('/api/v1/health', (req, res) => {
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/users', onboardingRoutes);
 
 // Handle unknown routes
 app.use('/api/v1/*', (req, res) => {
