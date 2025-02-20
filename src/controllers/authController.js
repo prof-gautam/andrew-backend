@@ -8,6 +8,7 @@ const { validateEmail, validatePassword } = require('../utils/validators');
 const { generateToken } = require('../utils/jwtHelper');
 const { sendOTP, validateOTP } = require('../utils/emailHelper');
 const config = require('../config/appConfig');
+const OTP = require('../models/otpModel');
 
 // ✅ 1️⃣ Request Email Verification
 exports.requestEmailVerification = async (req, res) => {
@@ -34,79 +35,109 @@ exports.requestEmailVerification = async (req, res) => {
 
 // ✅ 2️⃣ Verify Email
 exports.verifyEmail = async (req, res) => {
-    const { email, verificationCode } = req.body;
+    const { email, otp } = req.body;
 
-    if (!email || !verificationCode) {
-        return errorResponse(res, 'Email and verification code are required.', httpStatusCodes.BAD_REQUEST);
+    // Validate request
+    if (!email || !otp) {
+        return errorResponse(res, 'Email and OTP are required.', httpStatusCodes.BAD_REQUEST);
     }
 
-    const isValid = await validateOTP(email, verificationCode, 'email_verification');
-    if (!isValid) {
-        return errorResponse(res, 'Invalid or expired verification code.', httpStatusCodes.BAD_REQUEST);
+    // Check if OTP exists
+    const otpRecord = await OTP.findOne({ email, otp, purpose: 'email_verification', isUsed: false });
+
+    if (!otpRecord) {
+        return errorResponse(res, 'Invalid or expired OTP.', httpStatusCodes.UNAUTHORIZED);
     }
 
-    return successResponse(res, 'Email verified successfully.');
+    // ✅ Mark OTP as used
+    otpRecord.isUsed = true;
+    await otpRecord.save();
+
+    // ✅ Mark email as verified
+    await User.findOneAndUpdate({ email }, { isEmailVerified: true });
+
+    return successResponse(res, 'Email verified successfully. You can now proceed to signup.');
 };
 
 // ✅ 3️⃣ Signup
 exports.signup = async (req, res) => {
     const { email, name, password } = req.body;
 
-    if (!validateEmail(email) || !validatePassword(password)) {
-        return errorResponse(res, 'Invalid email or password.', httpStatusCodes.BAD_REQUEST);
+    // Validate input
+    if (!email || !name || !password) {
+        return errorResponse(res, 'All fields are required.', httpStatusCodes.BAD_REQUEST);
     }
 
-    // Check if user exists
+    // Check if email is verified
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
-        return errorResponse(res, 'Email already exists.', httpStatusCodes.CONFLICT);
+
+    if (existingUser && !existingUser.isEmailVerified) {
+        return errorResponse(res, 'Email is not verified. Please verify OTP first.', httpStatusCodes.FORBIDDEN);
     }
 
-    // Hash password and create user
-    const passwordHash = await bcrypt.hash(password, config.saltRounds || 10);
-    const newUser = new User({ email, name, passwordHash, isEmailVerified: true });
-    await newUser.save();
+    if (existingUser) {
+        return errorResponse(res, 'Email already registered.', httpStatusCodes.CONFLICT);
+    }
 
-    return successResponse(res, 'Signup successful.', { userId: newUser._id }, httpStatusCodes.CREATED);
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const newUser = await User.create({
+        email,
+        name,
+        passwordHash,
+        isEmailVerified: true,  // ✅ Ensuring user is verified
+        isFirstLogin: true      // ✅ Track first login
+    });
+
+    return successResponse(res, 'Signup successful.', { userId: newUser._id });
 };
 
 // ✅ 4️⃣ Login
 exports.login = async (req, res) => {
     const { email, password } = req.body;
 
-    // Check if user exists
+    // 1️⃣ Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
         return errorResponse(res, 'Invalid email or password.', httpStatusCodes.UNAUTHORIZED);
     }
 
-    // Verify password
+    // 2️⃣ Verify password
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
         return errorResponse(res, 'Invalid email or password.', httpStatusCodes.UNAUTHORIZED);
     }
 
-    // Generate tokens
+    // 3️⃣ Generate tokens
     const accessToken = generateToken({ userId: user._id, role: user.role }, '15m');
     const refreshToken = generateToken({ userId: user._id }, '7d');
 
-    // Save refresh token in DB
+    // 4️⃣ Save refresh token in DB
     await Token.create({
         userId: user._id,
         refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
-    // Set refresh token as a secure cookie
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    // 5️⃣ Determine if this is the first login
+    const isFirstLogin = user.isFirstLogin;
 
-    return successResponse(res, 'Login successful.', { accessToken, userId: user._id });
+    // 6️⃣ Update `isFirstLogin` if true
+    if (isFirstLogin) {
+        user.isFirstLogin = false;
+        await user.save();
+    }
+
+    // 7️⃣ Send response with `isFirstLogin` status
+    return successResponse(res, 'Login successful.', {
+        accessToken,
+        userId: user._id,
+        isFirstLogin
+    });
 };
+
 
 // ✅ 5️⃣ Refresh Token
 exports.refreshToken = async (req, res) => {
