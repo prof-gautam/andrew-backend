@@ -7,8 +7,8 @@ module.exports = {
 
     // JWT Config
     jwtSecret: process.env.JWT_SECRET || 'default_secret',
-    jwtExpiryAccess: process.env.JWT_EXPIRY_ACCESS || '15m',
-    jwtExpiryRefresh: process.env.JWT_EXPIRY_REFRESH || '7d',
+    jwtExpiryAccess: process.env.JWT_EXPIRY_ACCESS || '15d',
+    jwtExpiryRefresh: process.env.JWT_EXPIRY_REFRESH || '75d',
 
     // Database Config
     databaseUri: process.env.MONGO_URI,

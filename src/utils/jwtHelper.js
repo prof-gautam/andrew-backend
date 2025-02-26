@@ -7,7 +7,7 @@ const { jwtSecret } = require('../config/appConfig');
  * @param {string} expiresIn - Expiration duration (e.g., '15m', '7d')
  * @returns {string} - Signed JWT token
  */
-const generateToken = (payload, expiresIn = '15m') => {
+const generateToken = (payload, expiresIn = '15d') => {
     try {
         return jwt.sign(payload, jwtSecret, { expiresIn });
     } catch (error) {
