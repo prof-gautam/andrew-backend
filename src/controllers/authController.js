@@ -111,8 +111,8 @@ exports.login = async (req, res) => {
     }
 
     // 3️⃣ Generate tokens
-    const accessToken = generateToken({ userId: user._id, role: user.role }, '15m');
-    const refreshToken = generateToken({ userId: user._id }, '7d');
+    const accessToken = generateToken({ userId: user._id, role: user.role }, '15d');
+    const refreshToken = generateToken({ userId: user._id }, '15d');
 
     // 4️⃣ Save refresh token in DB
     await Token.create({

@@ -5,10 +5,21 @@ const courseSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // 🔗 Links to User
     title: { type: String, required: true },
     description: { type: String, required: true },
-    timeline: { type: String, required: true }, // e.g. "4 weeks"
+    timeline: { type: Number, required: true }, // e.g. "4 weeks"
     goal: { type: String, required: true }, // e.g. "Exam Preparation"
     materialUploadStatus: { type: String, enum: ['incomplete', 'complete'], default: 'incomplete' }, // 🚀 Prevents updates after completion
     materialCount: { type: Number, default: 0 }, // ✅ Tracks number of uploaded materials
+    materials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // 📂 Store Material References
+
+    // 📌 Global Quiz Configuration
+    quizConfig: {
+        quizTypes: [{ type: String, enum: ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'] }],
+        numberOfQuestions: { type: Number, default: 10 },
+        difficultyLevel: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Easy' },
+        isTimed: { type: Boolean, default: false },
+        timeDuration: { type: Number, default: 30 } // In minutes, only applicable if isTimed=true
+    },
+
     createdAt: { type: Date, default: Date.now }
 });
 

@@ -1,4 +1,3 @@
-// 📂 src/utils/paginationHelper.js
 exports.paginateQuery = async (model, query, page, limit) => {
     try {
         const pageNumber = parseInt(page, 10) || 1;
