@@ -2,16 +2,15 @@
 const mongoose = require('mongoose');
 
 const courseSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // 🔗 Links to User
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Links to User
     title: { type: String, required: true },
     description: { type: String, required: true },
-    timeline: { type: Number, required: true }, // e.g. "4 weeks"
+    timeline: { type: Number, required: true }, // must be a number
     goal: { type: String, required: true }, // e.g. "Exam Preparation"
-    materialUploadStatus: { type: String, enum: ['incomplete', 'complete'], default: 'incomplete' }, // 🚀 Prevents updates after completion
+    materialUploadStatus: { type: String, enum: ['incomplete', 'complete'], default: 'incomplete' }, 
     materialCount: { type: Number, default: 0 }, // ✅ Tracks number of uploaded materials
-    materials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // 📂 Store Material References
+    materials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // Store Material References
 
-    // 📌 Global Quiz Configuration
     quizConfig: {
         quizTypes: [{ type: String, enum: ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'] }],
         numberOfQuestions: { type: Number, default: 10 },

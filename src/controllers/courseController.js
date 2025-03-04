@@ -8,25 +8,18 @@ const mongoose = require('mongoose');
 
 /**
  * @route POST /api/v1/courses
- * @desc Create a new course with materials (PDF, audio, video, or link) and quiz configuration
+ * @desc Create a new course with materials (PDF, Audio, Video, or Link)
  */
 exports.createCourse = async (req, res) => {
     try {
         const { title, description, timeline, goal, quizConfig, materials } = req.body;
-        const files = req.files; // ✅ Get uploaded files
-        const parsedTimeline = Number(timeline); // Convert string to number
+        const files = req.files;
+        const parsedTimeline = Number(timeline);
 
-        if (isNaN(parsedTimeline)) {
-            return errorResponse(res, 'Timeline must be a valid number.', httpStatusCodes.BAD_REQUEST);
+        if (!title || isNaN(parsedTimeline) || !quizConfig) {
+            return errorResponse(res, 'Title, timeline, and quiz configuration are required.', httpStatusCodes.BAD_REQUEST);
         }
 
-
-        // ✅ Validate input
-        if (!title || !parsedTimeline || !quizConfig) {
-            return errorResponse(res, 'Title, timeline and quiz configuration are required.', httpStatusCodes.BAD_REQUEST);
-        }
-
-        // ✅ Parse `quizConfig`
         let parsedQuizConfig;
         try {
             parsedQuizConfig = JSON.parse(quizConfig);
@@ -34,35 +27,17 @@ exports.createCourse = async (req, res) => {
             return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
         }
 
-        // ✅ Validate `quizConfig`
         const validQuizTypes = ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'];
         const validDifficulties = ['Easy', 'Medium', 'Hard'];
 
-        if (!Array.isArray(parsedQuizConfig.quizTypes) || parsedQuizConfig.quizTypes.length === 0) {
-            return errorResponse(res, 'quizTypes must be a non-empty array.', httpStatusCodes.BAD_REQUEST);
-        }
-
-        if (!parsedQuizConfig.quizTypes.every(type => validQuizTypes.includes(type))) {
+        if (!Array.isArray(parsedQuizConfig.quizTypes) || !parsedQuizConfig.quizTypes.every(type => validQuizTypes.includes(type))) {
             return errorResponse(res, `Invalid quiz type. Allowed: ${validQuizTypes.join(', ')}`, httpStatusCodes.BAD_REQUEST);
-        }
-
-        if (!Number.isInteger(parsedQuizConfig.numberOfQuestions) || parsedQuizConfig.numberOfQuestions <= 0) {
-            return errorResponse(res, 'numberOfQuestions must be a positive integer.', httpStatusCodes.BAD_REQUEST);
         }
 
         if (!validDifficulties.includes(parsedQuizConfig.difficultyLevel)) {
             return errorResponse(res, `Invalid difficulty level. Allowed: ${validDifficulties.join(', ')}`, httpStatusCodes.BAD_REQUEST);
         }
 
-        if (typeof parsedQuizConfig.isTimed !== 'boolean') {
-            return errorResponse(res, 'isTimed must be a boolean (true/false).', httpStatusCodes.BAD_REQUEST);
-        }
-
-        if (parsedQuizConfig.isTimed && (!Number.isInteger(parsedQuizConfig.timeDuration) || parsedQuizConfig.timeDuration <= 0)) {
-            return errorResponse(res, 'timeDuration must be a positive integer if isTimed is true.', httpStatusCodes.BAD_REQUEST);
-        }
-
-        // ✅ Create Course
         const course = await Course.create({
             userId: req.user.userId,
             title,
@@ -74,19 +49,13 @@ exports.createCourse = async (req, res) => {
 
         let materialList = [];
 
-        // ✅ Handle File Uploads if Provided
         if (files && files.length > 0) {
             for (let file of files) {
-                let type;
-                
-                // ✅ Determine file type based on MIME type
-                if (file.mimetype.startsWith('application/pdf')) {
-                    type = 'pdf';
-                } else if (file.mimetype.startsWith('audio/')) {
-                    type = 'audio';
-                } else if (file.mimetype.startsWith('video/')) {
-                    type = 'video';
-                } else {
+                let type = file.mimetype.startsWith('application/pdf') ? 'pdf' :
+                           file.mimetype.startsWith('audio/') ? 'audio' :
+                           file.mimetype.startsWith('video/') ? 'video' : null;
+
+                if (!type) {
                     return errorResponse(res, `Invalid file type: ${file.mimetype}. Allowed: PDF, Audio, Video.`, httpStatusCodes.BAD_REQUEST);
                 }
 
@@ -94,22 +63,16 @@ exports.createCourse = async (req, res) => {
 
                 const newMaterial = await Material.create({
                     courseId: course._id,
-                    title: file.originalname,
+                    title: req.body[`materialTitle_${file.originalname}`] || 'Untitled Material',
+                    description: req.body[`materialDescription_${file.originalname}`] || '',
                     type,
                     fileUrl
                 });
 
                 materialList.push(newMaterial);
             }
-
-            // ✅ Update Material Count
-            await Course.findByIdAndUpdate(course._id, {
-                materialCount: materialList.length,
-                materials: materialList.map(m => m._id)
-            });
         }
 
-        // ✅ Handle Link Materials
         if (materials) {
             const parsedMaterials = JSON.parse(materials);
             for (let material of parsedMaterials) {
@@ -120,18 +83,19 @@ exports.createCourse = async (req, res) => {
                 const newMaterial = await Material.create({
                     courseId: course._id,
                     title: material.title || 'Untitled Link',
+                    description: material.description || '',
                     type: 'link',
                     fileUrl: material.fileUrl
                 });
 
                 materialList.push(newMaterial);
             }
-
-            await Course.findByIdAndUpdate(course._id, {
-                materialCount: materialList.length,
-                materials: materialList.map(m => m._id)
-            });
         }
+
+        await Course.findByIdAndUpdate(course._id, {
+            materialCount: materialList.length,
+            materials: materialList.map(m => m._id)
+        });
 
         return successResponse(res, 'Course created successfully.', { course, materials: materialList }, httpStatusCodes.CREATED);
     } catch (error) {
@@ -147,12 +111,10 @@ exports.createCourse = async (req, res) => {
 exports.getCourseById = async (req, res) => {
     try {
         const { courseId } = req.params;
-
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
         }
 
-        // ✅ Fetch course with materials
         const course = await Course.findById(courseId).populate('materials');
         if (!course) {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
@@ -208,56 +170,23 @@ exports.updateCourse = async (req, res) => {
             return errorResponse(res, 'This course has been marked as complete and cannot be updated.', httpStatusCodes.FORBIDDEN);
         }
 
-        // ✅ Convert `timeline` to a Number
         const parsedTimeline = Number(timeline);
-        if (timeline && (isNaN(parsedTimeline) || parsedTimeline <= 0)) {
-            return errorResponse(res, 'Timeline must be a valid positive number.', httpStatusCodes.BAD_REQUEST);
+        if (timeline && isNaN(parsedTimeline)) {
+            return errorResponse(res, 'Timeline must be a valid number.', httpStatusCodes.BAD_REQUEST);
         }
 
-        // ✅ Validate and parse `quizConfig` if provided
-        let parsedQuizConfig = course.quizConfig;
-        if (quizConfig) {
-            try {
-                parsedQuizConfig = JSON.parse(quizConfig);
-            } catch (err) {
-                return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
-            }
-
-            // ✅ Validate `quizConfig`
-            const validQuizTypes = ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'];
-            const validDifficulties = ['Easy', 'Medium', 'Hard'];
-
-            if (!Array.isArray(parsedQuizConfig.quizTypes) || parsedQuizConfig.quizTypes.length === 0) {
-                return errorResponse(res, 'quizTypes must be a non-empty array.', httpStatusCodes.BAD_REQUEST);
-            }
-
-            if (!parsedQuizConfig.quizTypes.every(type => validQuizTypes.includes(type))) {
-                return errorResponse(res, `Invalid quiz type. Allowed: ${validQuizTypes.join(', ')}`, httpStatusCodes.BAD_REQUEST);
-            }
-
-            if (!Number.isInteger(parsedQuizConfig.numberOfQuestions) || parsedQuizConfig.numberOfQuestions <= 0) {
-                return errorResponse(res, 'numberOfQuestions must be a positive integer.', httpStatusCodes.BAD_REQUEST);
-            }
-
-            if (!validDifficulties.includes(parsedQuizConfig.difficultyLevel)) {
-                return errorResponse(res, `Invalid difficulty level. Allowed: ${validDifficulties.join(', ')}`, httpStatusCodes.BAD_REQUEST);
-            }
-
-            if (typeof parsedQuizConfig.isTimed !== 'boolean') {
-                return errorResponse(res, 'isTimed must be a boolean (true/false).', httpStatusCodes.BAD_REQUEST);
-            }
-
-            if (parsedQuizConfig.isTimed && (!Number.isInteger(parsedQuizConfig.timeDuration) || parsedQuizConfig.timeDuration <= 0)) {
-                return errorResponse(res, 'timeDuration must be a positive integer if isTimed is true.', httpStatusCodes.BAD_REQUEST);
-            }
-        }
-
-        // ✅ Update course fields
         course.title = title || course.title;
         course.description = description || course.description;
         course.timeline = timeline ? parsedTimeline : course.timeline;
         course.goal = goal || course.goal;
-        course.quizConfig = parsedQuizConfig || course.quizConfig;
+        
+        if (quizConfig) {
+            try {
+                course.quizConfig = JSON.parse(quizConfig);
+            } catch (err) {
+                return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
+            }
+        }
 
         await course.save();
         return successResponse(res, 'Course updated successfully.', course);
@@ -269,12 +198,11 @@ exports.updateCourse = async (req, res) => {
 
 /**
  * @route DELETE /api/v1/courses/:courseId
- * @desc Delete a course (Allowed even if materials are complete)
+ * @desc Delete a course and its materials
  */
 exports.deleteCourse = async (req, res) => {
     try {
         const { courseId } = req.params;
-
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
         }
@@ -284,7 +212,6 @@ exports.deleteCourse = async (req, res) => {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
 
-        // ✅ Delete associated materials
         await Material.deleteMany({ courseId });
 
         return successResponse(res, 'Course and associated materials deleted successfully.');

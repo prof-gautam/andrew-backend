@@ -5,13 +5,19 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { preventUpdateIfComplete } = require('../middlewares/restrictMaterialModification');
 const upload = require('../middlewares/multerConfig'); // ✅ Import Multer
 
-// ✅ Allow file uploads for course creation
+// ✅ Create a new course with materials (Supports file uploads)
 router.post('/', authMiddleware, upload.array('materials', 10), courseController.createCourse);
 
-// ✅ Other course routes
+// ✅ Get all courses (Supports pagination & search)
 router.get('/', authMiddleware, courseController.getAllCourses);
+
+// ✅ Get a specific course by ID (Includes materials)
 router.get('/:courseId', authMiddleware, courseController.getCourseById);
+
+// ✅ Update a course (Restricted if materials are marked complete)
 router.put('/:courseId', authMiddleware, preventUpdateIfComplete, courseController.updateCourse);
+
+// ✅ Delete a course (Deletes associated materials)
 router.delete('/:courseId', authMiddleware, courseController.deleteCourse);
 
 module.exports = router;
