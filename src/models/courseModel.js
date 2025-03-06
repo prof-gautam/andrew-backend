@@ -1,4 +1,3 @@
-// 📂 src/models/courseModel.js
 const mongoose = require('mongoose');
 
 const courseSchema = new mongoose.Schema({
@@ -19,7 +18,19 @@ const courseSchema = new mongoose.Schema({
         timeDuration: { type: Number, default: 30 } // In minutes, only applicable if isTimed=true
     },
 
+    learningSummary: {
+        totalModules: { type: Number, default: null },
+        completedModules: { type: Number, default: 0 },
+        firstIncompleteModule: { type: mongoose.Schema.Types.ObjectId, ref: 'Module', default: null },
+        courseGrade: { type: Number, min: 0, max: 100, default: null }, // Grade as a percentage
+        daysLeft: { type: Number, default: null } // Number of days left for completion
+    },
+
     createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Course', courseSchema);
+
+
+
+
