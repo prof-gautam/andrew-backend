@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 
 /**
  * @route POST /api/v1/courses
- * @desc Create a new course with materials (PDF, Audio, Video, or Link)
+ * @desc Create a new course with optional materials & quiz configuration
  */
 exports.createCourse = async (req, res) => {
     try {
@@ -94,7 +94,8 @@ exports.createCourse = async (req, res) => {
 
         await Course.findByIdAndUpdate(course._id, {
             materialCount: materialList.length,
-            materials: materialList.map(m => m._id)
+            materials: materialList.map(m => m._id),
+            unprocessedMaterials: materialList.map(m => m._id) // ✅ Store all materials in unprocessedMaterials initially
         });
 
         return successResponse(res, 'Course created successfully.', { course, materials: materialList }, httpStatusCodes.CREATED);
@@ -115,7 +116,10 @@ exports.getCourseById = async (req, res) => {
             return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
         }
 
-        const course = await Course.findById(courseId).populate('materials');
+        const course = await Course.findById(courseId)
+            .populate('materials')
+            .populate('unprocessedMaterials');
+
         if (!course) {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
@@ -150,7 +154,7 @@ exports.getAllCourses = async (req, res) => {
 
 /**
  * @route PUT /api/v1/courses/:courseId
- * @desc Update a course (Restricted if materials are marked complete)
+ * @desc Update a course (Includes updating quiz configuration)
  */
 exports.updateCourse = async (req, res) => {
     try {
@@ -166,20 +170,6 @@ exports.updateCourse = async (req, res) => {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
 
-        if (course.materialUploadStatus === 'complete') {
-            return errorResponse(res, 'This course has been marked as complete and cannot be updated.', httpStatusCodes.FORBIDDEN);
-        }
-
-        const parsedTimeline = Number(timeline);
-        if (timeline && isNaN(parsedTimeline)) {
-            return errorResponse(res, 'Timeline must be a valid number.', httpStatusCodes.BAD_REQUEST);
-        }
-
-        course.title = title || course.title;
-        course.description = description || course.description;
-        course.timeline = timeline ? parsedTimeline : course.timeline;
-        course.goal = goal || course.goal;
-        
         if (quizConfig) {
             try {
                 course.quizConfig = JSON.parse(quizConfig);
@@ -187,6 +177,11 @@ exports.updateCourse = async (req, res) => {
                 return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
             }
         }
+
+        course.title = title || course.title;
+        course.description = description || course.description;
+        course.timeline = timeline ? Number(timeline) : course.timeline;
+        course.goal = goal || course.goal;
 
         await course.save();
         return successResponse(res, 'Course updated successfully.', course);
@@ -207,7 +202,7 @@ exports.deleteCourse = async (req, res) => {
             return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
         }
 
-        const course = await Course.findOneAndDelete({ _id: courseId, userId: req.user.userId });
+        const course = await Course.findByIdAndDelete(courseId);
         if (!course) {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }

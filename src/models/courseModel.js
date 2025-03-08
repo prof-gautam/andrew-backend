@@ -4,11 +4,14 @@ const courseSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Links to User
     title: { type: String, required: true },
     description: { type: String, required: true },
-    timeline: { type: Number, required: true }, // must be a number
+    timeline: { type: Number, required: true }, // Must be a number (weeks)
     goal: { type: String, required: true }, // e.g. "Exam Preparation"
-    materialUploadStatus: { type: String, enum: ['incomplete', 'complete'], default: 'incomplete' }, 
-    materialCount: { type: Number, default: 0 }, // ✅ Tracks number of uploaded materials
-    materials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // Store Material References
+
+    materialCount: { type: Number, default: 0 }, // ✅ Tracks the number of uploaded materials
+    materials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // Stores all materials
+    unprocessedMaterials: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Material' }], // Stores unprocessed materials (pending module creation)
+
+    modules: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Module' }], // Stores modules generated from materials
 
     quizConfig: {
         quizTypes: [{ type: String, enum: ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'] }],
@@ -19,7 +22,7 @@ const courseSchema = new mongoose.Schema({
     },
 
     learningSummary: {
-        totalModules: { type: Number, default: null },
+        totalModules: { type: Number, default: 0 },
         completedModules: { type: Number, default: 0 },
         firstIncompleteModule: { type: mongoose.Schema.Types.ObjectId, ref: 'Module', default: null },
         courseGrade: { type: Number, min: 0, max: 100, default: null }, // Grade as a percentage
@@ -30,7 +33,3 @@ const courseSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Course', courseSchema);
-
-
-
-

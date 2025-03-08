@@ -3,12 +3,11 @@ const multer = require('multer');
 const router = express.Router();
 const materialController = require('../controllers/materialController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const { preventUploadIfComplete } = require('../middlewares/restrictMaterialModification');
 
 const upload = multer(); // ✅ Memory storage
 
 // ✅ Upload Material (Single File)
-router.post('/', authMiddleware, upload.single('file'), preventUploadIfComplete, materialController.uploadMaterial);
+router.post('/', authMiddleware, upload.single('file'), materialController.uploadMaterial);
 
 // ✅ Get Materials for a Course
 router.get('/:courseId', authMiddleware, materialController.getMaterialsByCourse);

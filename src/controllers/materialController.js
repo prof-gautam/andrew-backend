@@ -67,10 +67,13 @@ exports.uploadMaterial = async (req, res) => {
             fileUrl: uploadedFileUrl
         });
 
-        // ✅ Update course material count
+        // ✅ Update course with new material
         await Course.findByIdAndUpdate(courseId, {
             $inc: { materialCount: 1 },
-            $push: { materials: material._id }
+            $push: {
+                materials: material._id,
+                unprocessedMaterials: material._id // ✅ New materials are marked unprocessed
+            }
         });
 
         return successResponse(res, 'Material uploaded successfully.', material, httpStatusCodes.CREATED);
@@ -132,6 +135,7 @@ exports.getMaterialById = async (req, res) => {
         return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
 };
+
 /**
  * @route DELETE /api/v1/materials/:materialId
  * @desc Delete a material (Requires courseId, validates ownership)
@@ -169,7 +173,10 @@ exports.deleteMaterial = async (req, res) => {
         // ✅ Update course material count
         await Course.findByIdAndUpdate(courseId, {
             $inc: { materialCount: -1 },
-            $pull: { materials: materialId }
+            $pull: {
+                materials: materialId,
+                unprocessedMaterials: materialId // ✅ Remove from unprocessed materials as well
+            }
         });
 
         return successResponse(res, 'Material deleted successfully.');

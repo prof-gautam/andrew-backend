@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const courseController = require('../controllers/courseController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const { preventUpdateIfComplete } = require('../middlewares/restrictMaterialModification');
 const upload = require('../middlewares/multerConfig'); // ✅ Import Multer
 
 // ✅ Create a new course with materials (Supports file uploads)
@@ -15,7 +14,7 @@ router.get('/', authMiddleware, courseController.getAllCourses);
 router.get('/:courseId', authMiddleware, courseController.getCourseById);
 
 // ✅ Update a course (Restricted if materials are marked complete)
-router.put('/:courseId', authMiddleware, preventUpdateIfComplete, courseController.updateCourse);
+router.put('/:courseId', authMiddleware, courseController.updateCourse);
 
 // ✅ Delete a course (Deletes associated materials)
 router.delete('/:courseId', authMiddleware, courseController.deleteCourse);
