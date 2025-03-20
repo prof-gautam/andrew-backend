@@ -1,5 +1,6 @@
 // Import necessary modules
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const Token = require('../models/tokenModel');
 const { successResponse, errorResponse } = require('../utils/responseHelper');
@@ -98,44 +99,32 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
     const { email, password } = req.body;
 
-    // 1️⃣ Check if user exists
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
-        return errorResponse(res, 'Invalid email or password.', httpStatusCodes.UNAUTHORIZED);
+        return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // 2️⃣ Verify password
+    // Verify password
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
-        return errorResponse(res, 'Invalid email or password.', httpStatusCodes.UNAUTHORIZED);
+        return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // 3️⃣ Generate tokens
-    const accessToken = generateToken({ userId: user._id, role: user.role }, '15d');
-    const refreshToken = generateToken({ userId: user._id }, '15d');
+    // Generate tokens (Include `tokenVersion`)
+    const accessToken = jwt.sign(
+        { userId: user._id, role: user.role, tokenVersion: user.tokenVersion }, 
+        config.jwtSecret, 
+        { expiresIn: '15d' }
+    );
 
-    // 4️⃣ Save refresh token in DB
-    await Token.create({
-        userId: user._id,
-        refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+    const refreshToken = jwt.sign({ userId: user._id }, config.jwtSecret, { expiresIn: '30d' });
 
-    // 5️⃣ Determine if this is the first login
-    const isFirstLogin = user.isFirstLogin;
+    // Remove old refresh tokens & store new one
+    await Token.deleteMany({ userId: user._id });
+    await Token.create({ userId: user._id, refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
 
-    // 6️⃣ Update `isFirstLogin` if true
-    if (isFirstLogin) {
-        user.isFirstLogin = false;
-        await user.save();
-    }
-
-    // 7️⃣ Send response with `isFirstLogin` status
-    return successResponse(res, 'Login successful.', {
-        accessToken,
-        userId: user._id,
-        isFirstLogin
-    });
+    return res.json({ accessToken, refreshToken, userId: user._id, isFirstLogin: user.isFirstLogin });
 };
 
 
@@ -164,15 +153,34 @@ exports.logout = async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-        return errorResponse(res, 'Refresh token missing.', httpStatusCodes.BAD_REQUEST);
+        console.log("🚨 Logout Error: Refresh token missing.");
+        return res.status(400).json({ message: 'Refresh token missing.' });
     }
 
-    // // Remove refresh token from DB
-    // await Token.deleteOne({ refreshToken });
-    // res.clearCookie('refreshToken');
+    // Find user by refresh token
+    const tokenDoc = await Token.findOne({ refreshToken });
+    if (!tokenDoc) {
+        console.log("🚨 Logout Error: Invalid refresh token.");
+        return res.status(401).json({ message: 'Invalid or expired refresh token.' });
+    }
 
-    return successResponse(res, 'Logout successful.');
+    // 🔥 1️⃣ Log Current `tokenVersion` Before Update
+    const user = await User.findById(tokenDoc.userId);
+    console.log(`🔹 Before Logout: User's tokenVersion = ${user.tokenVersion}`);
+
+    // 🔥 2️⃣ Increase `tokenVersion` in the database
+    await User.findByIdAndUpdate(tokenDoc.userId, { $inc: { tokenVersion: 1 } });
+
+    // 🔥 3️⃣ Fetch Updated `tokenVersion`
+    const updatedUser = await User.findById(tokenDoc.userId);
+    console.log(`✅ After Logout: User's tokenVersion = ${updatedUser.tokenVersion}`);
+
+    // 🔥 4️⃣ Delete all refresh tokens for this user
+    await Token.deleteMany({ userId: tokenDoc.userId });
+
+    return res.json({ message: 'Logout successful. All access tokens are now invalid.' });
 };
+
 
 // ✅ 7️⃣ Forgot Password
 exports.forgotPassword = async (req, res) => {

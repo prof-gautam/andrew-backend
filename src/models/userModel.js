@@ -8,10 +8,11 @@ const userSchema = new mongoose.Schema({
     isEmailVerified: { type: Boolean, default: false }, 
     profileImage: { type: String, default: '' }, // ✅ Stores S3 URL
     isFirstLogin: { type: Boolean, default: true }, // ✅ Efficient First Login Tracking
+    tokenVersion: { type: Number, default: 0 }, // 🔥 NEW FIELD: Helps expire tokens on logout
     createdAt: { type: Date, default: Date.now }
 });
 
-// 🔥 Indexing for faster queries
+// Indexing for faster queries
 userSchema.index({ email: 1 });
 userSchema.index({ createdAt: -1 });
 
