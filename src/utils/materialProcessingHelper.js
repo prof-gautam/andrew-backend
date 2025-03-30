@@ -5,9 +5,9 @@ const cheerio = require('cheerio');
 const { httpStatusCodes, messages } = require('./httpStatusCodes');
 const config = require('../config/appConfig'); // ✅ Uses appConfig for API keys
 
-// ✅ Initialize AssemblyAI client
+//  Initialize AssemblyAI client
 const assemblyaiClient = new AssemblyAI({
-    apiKey: config.assemblyaiApi, // ✅ Using AssemblyAI API key from appConfig
+    apiKey: config.assemblyaiApi, // Using AssemblyAI API key from appConfig
 });
 
 /**
@@ -24,11 +24,11 @@ const extractTextFromAudio = async (fileUrl) => {
             };
         }
 
-        // ✅ Transcribe the audio using AssemblyAI
+        //  Transcribe the audio using AssemblyAI
         const data = { audio: fileUrl };
         const transcript = await assemblyaiClient.transcripts.transcribe(data);
 
-        // ✅ Extract transcribed text
+        //  Extract transcribed text
         if (transcript.text) {
             return {
                 status: httpStatusCodes.OK,
@@ -122,10 +122,9 @@ const extractTextFromWebLink = async (url) => {
                 paragraphs.push($(elem).text().trim());
             });
 
-        // ✅ Combine extracted content
+        // Combine extracted content
         const extractedText = `Title: ${title}\n\n${paragraphs.join('\n\n')}`;
-        console.log(extractedText);
-        
+      
 
         if (!extractedText.trim()) {
             return {

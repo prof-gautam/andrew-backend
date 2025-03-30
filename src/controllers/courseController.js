@@ -13,7 +13,7 @@ const mongoose = require('mongoose');
 exports.createCourse = async (req, res) => {
     try {
         const { title, description, timeline, goal, quizConfig, materials } = req.body;
-        const files = req.files;
+        const uploadedMaterials = req.files || [];
         const parsedTimeline = Number(timeline);
 
         if (!title || isNaN(parsedTimeline) || !quizConfig) {
@@ -49,32 +49,38 @@ exports.createCourse = async (req, res) => {
 
         let materialList = [];
 
-        if (files && files.length > 0) {
-            for (let file of files) {
-                let type = file.mimetype.startsWith('application/pdf') ? 'pdf' :
-                           file.mimetype.startsWith('audio/') ? 'audio' :
-                           file.mimetype.startsWith('video/') ? 'video' : null;
+        // Handle uploaded materials (PDF, audio, video)
+        for (let file of uploadedMaterials) {
+            let type = file.mimetype.startsWith('application/pdf') ? 'pdf' :
+                       file.mimetype.startsWith('audio/') ? 'audio' :
+                       file.mimetype.startsWith('video/') ? 'video' : null;
 
-                if (!type) {
-                    return errorResponse(res, `Invalid file type: ${file.mimetype}. Allowed: PDF, Audio, Video.`, httpStatusCodes.BAD_REQUEST);
-                }
-
-                const fileUrl = await uploadCourseMaterial(file.buffer, course._id, file.originalname, file.mimetype);
-
-                const newMaterial = await Material.create({
-                    courseId: course._id,
-                    title: req.body[`materialTitle_${file.originalname}`] || 'Untitled Material',
-                    description: req.body[`materialDescription_${file.originalname}`] || '',
-                    type,
-                    fileUrl
-                });
-
-                materialList.push(newMaterial);
+            if (!type) {
+                return errorResponse(res, `Invalid file type: ${file.mimetype}. Allowed: PDF, Audio, Video.`, httpStatusCodes.BAD_REQUEST);
             }
+
+            const fileUrl = await uploadCourseMaterial(file.buffer, course._id, file.originalname, file.mimetype);
+
+            const newMaterial = await Material.create({
+                courseId: course._id,
+                title: req.body[`materialTitle_${file.originalname}`] || 'Untitled Material',
+                description: req.body[`materialDescription_${file.originalname}`] || '',
+                type,
+                fileUrl
+            });
+
+            materialList.push(newMaterial);
         }
 
+        // Handle external link materials
         if (materials) {
-            const parsedMaterials = JSON.parse(materials);
+            let parsedMaterials;
+            try {
+                parsedMaterials = JSON.parse(materials);
+            } catch (err) {
+                return errorResponse(res, 'Invalid JSON format for materials.', httpStatusCodes.BAD_REQUEST);
+            }
+
             for (let material of parsedMaterials) {
                 if (!material.type || material.type !== 'link' || !material.fileUrl) {
                     return errorResponse(res, 'Invalid link material. It must have type "link" and a valid URL.', httpStatusCodes.BAD_REQUEST);
@@ -95,7 +101,7 @@ exports.createCourse = async (req, res) => {
         await Course.findByIdAndUpdate(course._id, {
             materialCount: materialList.length,
             materials: materialList.map(m => m._id),
-            unprocessedMaterials: materialList.map(m => m._id) // ✅ Store all materials in unprocessedMaterials initially
+            unprocessedMaterials: materialList.map(m => m._id)
         });
 
         return successResponse(res, 'Course created successfully.', { course, materials: materialList }, httpStatusCodes.CREATED);
