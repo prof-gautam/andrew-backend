@@ -5,6 +5,8 @@ const { successResponse, errorResponse } = require('../utils/responseHelper');
 const { httpStatusCodes } = require('../utils/httpStatusCodes');
 const { paginateQuery } = require('../utils/paginationHelper');
 const mongoose = require('mongoose');
+const { validateQuizConfig } = require('../utils/quizValidationHelper');
+
 
 /**
  * @route POST /api/v1/courses
@@ -176,18 +178,32 @@ exports.updateCourse = async (req, res) => {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
 
+        // ✅ Handle partial update of quizConfig
         if (quizConfig) {
+            let parsedQuizConfig;
+
             try {
-                course.quizConfig = JSON.parse(quizConfig);
+                parsedQuizConfig = typeof quizConfig === 'string' ? JSON.parse(quizConfig) : quizConfig;
             } catch (err) {
                 return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
             }
+
+            const validationErrors = validateQuizConfig(parsedQuizConfig);
+            if (validationErrors.length > 0) {
+                return errorResponse(res, validationErrors.join(' '), httpStatusCodes.BAD_REQUEST);
+            }
+
+            course.quizConfig = {
+                ...course.quizConfig.toObject?.() || course.quizConfig,
+                ...parsedQuizConfig
+            };
         }
 
-        course.title = title || course.title;
-        course.description = description || course.description;
-        course.timeline = timeline ? Number(timeline) : course.timeline;
-        course.goal = goal || course.goal;
+        // ✅ Handle other fields (if provided)
+        if (title) course.title = title;
+        if (description) course.description = description;
+        if (timeline) course.timeline = Number(timeline);
+        if (goal) course.goal = goal;
 
         await course.save();
         return successResponse(res, 'Course updated successfully.', course);
@@ -196,6 +212,7 @@ exports.updateCourse = async (req, res) => {
         return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
 };
+
 
 /**
  * @route DELETE /api/v1/courses/:courseId
