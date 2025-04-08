@@ -6,8 +6,8 @@ const { extractTextFromPDF, extractTextFromAudio, extractTextFromWebLink } = req
 const { successResponse, errorResponse } = require('../utils/responseHelper');
 const { httpStatusCodes } = require('../utils/httpStatusCodes');
 const OpenAI = require('openai');
-const config = require('../config/appConfig'); // ✅ Uses appConfig
-
+const config = require('../config/appConfig');
+const {paginateQuery} = require('../utils/paginationHelper')
 // ✅ Initialize DeepSeek API
 const openai = new OpenAI({
     baseURL: "https://api.deepseek.com",
@@ -283,3 +283,27 @@ exports.getAllModulesByCourse = async (req, res) => {
         return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
 };
+
+/**
+ * @route GET /api/v1/modules
+ * @desc Get all modules across all courses (paginated)
+ */
+exports.getAllModules = async (req, res) => {
+    try {
+        const { page, limit, search } = req.query;
+        const query = {};
+
+        // Optional search on title
+        if (search) {
+            query.title = { $regex: search, $options: 'i' };
+        }
+
+        const paginatedModules = await paginateQuery(Module, query, page, limit);
+
+        return successResponse(res, 'All modules retrieved successfully.', paginatedModules);
+    } catch (error) {
+        console.error('❌ Error fetching all modules:', error);
+        return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+    }
+};
+
