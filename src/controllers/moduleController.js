@@ -107,6 +107,7 @@ exports.generateModules = async (req, res) => {
                 title: moduleData.title,
                 description: moduleData.description,
                 order: currentOrder++,
+                keyPoints: moduleData.keyPoints || [],
                 materials: unprocessedMaterials.map(m => m._id), // Link used materials
             });
 
@@ -219,6 +220,7 @@ exports.updateModules = async (req, res) => {
                 courseId,
                 title: moduleData.title,
                 description: moduleData.description,
+                keyPoints: moduleData.keyPoints || [],
                 order: lastOrder++,
                 materials: newUnprocessedMaterials.map(m => m._id),
             });

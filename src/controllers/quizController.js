@@ -5,6 +5,11 @@ const { successResponse, errorResponse } = require("../utils/responseHelper")
 const { httpStatusCodes } = require("../utils/httpStatusCodes")
 const OpenAI = require("openai")
 const config = require("../config/appConfig") // ✅ Uses appConfig
+const {
+  evaluateMCQorTrueFalse,
+  evaluateOpenEnded,
+  evaluateCoding,
+} = require("../utils/quizEvaluator")
 
 // ✅ Initialize DeepSeek API
 const openai = new OpenAI({
@@ -20,17 +25,17 @@ exports.getQuizByModule = async (req, res) => {
   try {
     const { moduleId } = req.params
 
-    // ✅ Validate Module
-    const quiz = await Quiz.findOne({ moduleId })
-    if (!quiz) {
+    const quizzes = await Quiz.find({ moduleId }).sort({ createdAt: -1 });
+    if (!quizzes || quizzes.length === 0) {
       return errorResponse(
         res,
-        "Quiz not found for this module.",
+        "No quizzes found for this module.",
         httpStatusCodes.NOT_FOUND
-      )
+      );
     }
-
-    return successResponse(res, "Quiz retrieved successfully.", quiz)
+    
+    return successResponse(res, "Quizzes retrieved successfully.", quizzes);
+    
   } catch (error) {
     console.error("❌ Error fetching quiz:", error)
     return errorResponse(
@@ -72,30 +77,30 @@ exports.getQuizById = async (req, res) => {
  */
 exports.generateQuiz = async (req, res) => {
   try {
-    const { moduleId } = req.params
+    const { moduleId } = req.params;
 
     // ✅ Validate Module
-    const module = await Module.findById(moduleId).populate("courseId")
+    const module = await Module.findById(moduleId).populate("courseId");
     if (!module) {
-      return errorResponse(res, "Module not found.", httpStatusCodes.NOT_FOUND)
+      return errorResponse(res, "Module not found.", httpStatusCodes.NOT_FOUND);
     }
 
-    const course = await Course.findById(module.courseId)
+    const course = await Course.findById(module.courseId);
     if (!course) {
-      return errorResponse(res, "Course not found.", httpStatusCodes.NOT_FOUND)
+      return errorResponse(res, "Course not found.", httpStatusCodes.NOT_FOUND);
     }
 
-    // Check for quiz config
-    const { quizConfig } = course
+    // ✅ Limit number of quizzes (e.g., max 5 per module)
+    if (module.quizzes && module.quizzes.length >= 5) {
+      return errorResponse(res, "Maximum number of quizzes reached for this module (5).", httpStatusCodes.BAD_REQUEST);
+    }
+
+    const { quizConfig } = course;
     if (!quizConfig) {
-      return errorResponse(
-        res,
-        "Quiz configuration missing in course.",
-        httpStatusCodes.BAD_REQUEST
-      )
+      return errorResponse(res, "Quiz configuration missing in course.", httpStatusCodes.BAD_REQUEST);
     }
 
-    // Prepare prompt for AI quiz generation
+    // ✅ Prepare AI prompt
     const prompt = `
 You are an expert quiz creator for e-learning platforms.
 
@@ -105,11 +110,11 @@ MODULE:
 Title: ${module.title}
 Description: ${module.description}
 Key Points:
-${module.keyPoints?.map((point, i) => `${i + 1}. ${point}`).join('\n')}
+${module.keyPoints?.map((point, i) => `${i + 1}. ${point}`).join("\n")}
 
 Quiz Requirements:
 - Total questions: ${quizConfig.numberOfQuestions}
-- Allowed types: ${quizConfig.quizTypes.join(', ')}
+- Allowed types: ${quizConfig.quizTypes.join(", ")}
 - Difficulty: ${quizConfig.difficultyLevel}
 - Return a valid JSON with the following structure:
 
@@ -129,50 +134,46 @@ Quiz Requirements:
 ONLY return JSON. Do NOT include explanations, markdown, or comments.
 `;
 
-
     const response = await openai.chat.completions.create({
       model: "deepseek-chat",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 2000,
-    })
+    });
 
-    let rawResponse = response.choices[0].message.content.trim()
-    console.log("🔍 Raw AI Response:", rawResponse); // <-- ADD THIS LINE
+    let rawResponse = response.choices[0].message.content.trim();
+    console.log("🔍 Raw AI Response:", rawResponse);
 
-    rawResponse = rawResponse.replace(/```json|```/g, "").trim()
+    rawResponse = rawResponse.replace(/```json|```/g, "").trim();
 
-    let generatedQuiz
+    let generatedQuiz;
     try {
-      generatedQuiz = JSON.parse(rawResponse)
+      generatedQuiz = JSON.parse(rawResponse);
     } catch (error) {
-      return errorResponse(
-        res,
-        "Invalid AI-generated quiz format.",
-        httpStatusCodes.INTERNAL_SERVER_ERROR
-      )
+      return errorResponse(res, "Invalid AI-generated quiz format.", httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
 
-    // ✅ Save Quiz to DB
+    // ✅ Save and attach quiz
     const newQuiz = await Quiz.create({
       moduleId,
       title: generatedQuiz.title,
       description: generatedQuiz.description,
       questions: generatedQuiz.questions,
       totalQuestions: generatedQuiz.questions.length,
-      maxScore: generatedQuiz.questions.length, // Each question = 1 mark
+      maxScore: generatedQuiz.questions.length,
       timeLimit: quizConfig.isTimed ? quizConfig.timeDuration : null,
-    })
+    });
 
-    return successResponse(res, "Quiz generated successfully.", newQuiz)
+    await Module.findByIdAndUpdate(moduleId, {
+      $push: { quizzes: newQuiz._id },
+    });
+
+    return successResponse(res, "Quiz generated successfully.", newQuiz);
   } catch (error) {
-    console.error("❌ Error generating quiz:", error)
-    return errorResponse(
-      res,
-      "Internal server error.",
-      httpStatusCodes.INTERNAL_SERVER_ERROR
-    )
+    console.error("❌ Error generating quiz:", error);
+    return errorResponse(res, "Internal server error.", httpStatusCodes.INTERNAL_SERVER_ERROR);
   }
-}
+};
+
 
 /**
  * @route PATCH /api/v1/quizzes/:quizId/update
@@ -208,59 +209,63 @@ exports.updateQuiz = async (req, res) => {
 
 /**
  * @route POST /api/v1/quizzes/:quizId/submit
- * @desc Submit a quiz and calculate score
+ * @desc Submit a quiz and record a new attempt
  */
 exports.submitQuiz = async (req, res) => {
   try {
     const { quizId } = req.params
     const { userAnswers } = req.body
 
-    // ✅ Validate Quiz
     const quiz = await Quiz.findById(quizId)
     if (!quiz) {
       return errorResponse(res, "Quiz not found.", httpStatusCodes.NOT_FOUND)
     }
 
-    if (quiz.isCompleted) {
-      return errorResponse(
-        res,
-        "Quiz already completed.",
-        httpStatusCodes.BAD_REQUEST
-      )
-    }
-
+    // Auto-grading for MCQ and True/False only
     let obtainedMarks = 0
-    let updatedAnswers = []
+    let evaluatedAnswers = []
 
-    // ✅ Evaluate Answers
-    quiz.questions.forEach((question, index) => {
-      const userResponse = userAnswers.find(
+    quiz.questions.forEach((question) => {
+      const userAnswer = userAnswers.find(
         (ans) => ans.questionId.toString() === question._id.toString()
       )
 
-      if (userResponse) {
-        const isCorrect = userResponse.answer === question.correctAnswer
+      if (userAnswer) {
+        const isCorrect =
+          ["MCQ", "True/False"].includes(question.questionType) &&
+          userAnswer.answer === question.correctAnswer
+
         if (isCorrect) obtainedMarks++
 
-        updatedAnswers.push({
+        evaluatedAnswers.push({
           questionId: question._id,
-          answer: userResponse.answer,
-          isCorrect,
+          answer: userAnswer.answer,
+          isCorrect: isCorrect || false,
         })
       }
     })
 
-    // ✅ Update Quiz Record
-    quiz.obtainedMarks = obtainedMarks
-    quiz.userAnswers = updatedAnswers
-    quiz.isCompleted = true
+    const percentage =
+      ((obtainedMarks / quiz.totalQuestions) * 100).toFixed(2) + "%"
+
+    // Determine next attempt number
+    const attemptNumber = quiz.attempts.length + 1
+
+    quiz.attempts.push({
+      attemptNumber,
+      obtainedMarks,
+      percentage,
+      isCompleted: true,
+      answers: evaluatedAnswers,
+    })
+
     await quiz.save()
 
     return successResponse(res, "Quiz submitted successfully.", {
+      attemptNumber,
       obtainedMarks,
       totalQuestions: quiz.totalQuestions,
-      percentage:
-        ((obtainedMarks / quiz.totalQuestions) * 100).toFixed(2) + "%",
+      percentage,
     })
   } catch (error) {
     console.error("❌ Error submitting quiz:", error)
