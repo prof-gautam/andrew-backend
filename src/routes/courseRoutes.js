@@ -14,7 +14,7 @@ router.get('/', authMiddleware, courseController.getAllCourses);
 router.get('/:courseId', authMiddleware, courseController.getCourseById);
 
 // ✅ Update a course (Restricted if materials are marked complete)
-router.put('/:courseId', authMiddleware, courseController.updateCourse);
+router.put('/:courseId',upload.none(), authMiddleware, courseController.updateCourse);
 
 // ✅ Delete a course (Deletes associated materials)
 router.delete('/:courseId', authMiddleware, courseController.deleteCourse);
