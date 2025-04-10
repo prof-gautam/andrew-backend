@@ -23,12 +23,14 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like curl, Postman) or any origin
+    origin: (origin, callback) => {
+      // Allow all origins
       callback(null, true);
     },
-    credentials: true,
+    credentials: true, // Allow cookies and auth headers
   }));
+
+app.options('*', cors());
 app.use(helmet());
 app.use(morgan('dev'));
 
