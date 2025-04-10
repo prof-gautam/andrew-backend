@@ -39,9 +39,9 @@ const allowedOrigins = [
     credentials: true
   }));
   
-  app.options('*', cors()); // keep this for preflight support
+  // Allow preflight
+  app.options('*', cors());
   
-
 app.options('*', cors());
 app.use(helmet());
 app.use(morgan('dev'));
