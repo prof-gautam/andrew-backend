@@ -22,13 +22,25 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({
+const allowedOrigins = [
+    'https://andrew.gautamphuyal.com.np',
+    'https://andrew-frontend-git-main-phuyelgautam3gmailcoms-projects.vercel.app',
+    'https://andrew-frontend-pctqiww9h-phuyelgautam3gmailcoms-projects.vercel.app'
+  ];
+  
+  app.use(cors({
     origin: (origin, callback) => {
-      // Allow all origins
-      callback(null, true);
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     },
-    credentials: true, // Allow cookies and auth headers
+    credentials: true
   }));
+  
+  app.options('*', cors()); // keep this for preflight support
+  
 
 app.options('*', cors());
 app.use(helmet());
