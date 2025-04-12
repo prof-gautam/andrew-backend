@@ -13,6 +13,7 @@ const {
 } = require("../utils/quizEvaluator")
 
 const {generateQuizReport} = require("../utils/generateQuizReport")
+const {paginateQuery} = require('../utils/paginationHelper')
 
 
 // ✅ Initialize DeepSeek API
@@ -417,5 +418,75 @@ Do NOT return markdown or explanation.
   } catch (error) {
     console.error("❌ Error generating adaptive quiz for topic:", error);
     return errorResponse(res, "Internal server error.", httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};
+
+
+/**
+ * @route GET /api/v1/quizzes/user
+ * @desc Get all quizzes created under courses of the logged-in user
+ * @query page, limit
+ */
+exports.getAllUserQuizzes = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { page = 1, limit = 10 } = req.query;
+
+    const userCourses = await Course.find({ userId }).select('_id');
+    const courseIds = userCourses.map(c => c._id);
+
+    const modules = await Module.find({ courseId: { $in: courseIds } }).select('_id');
+    const moduleIds = modules.map(m => m._id);
+
+    const queryFilter = { moduleId: { $in: moduleIds } };
+
+    const result = await paginateQuery(Quiz, queryFilter, page, limit, [
+      {
+        path: 'moduleId',
+        select: 'title courseId',
+        populate: {
+          path: 'courseId',
+          select: 'title'
+        }
+      }
+    ]);
+
+    return successResponse(res, "User's quizzes fetched successfully.", result);
+  } catch (error) {
+    console.error("❌ Error fetching user's quizzes:", error);
+    return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};
+
+/**
+ * @route GET /api/v1/quizzes/course/:courseId
+ * @desc Get all quizzes under a specific course (via its modules)
+ * @query page, limit
+ */
+exports.getAllQuizzesByCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const modules = await Module.find({ courseId }).select('_id');
+    const moduleIds = modules.map(m => m._id);
+
+    const queryFilter = { moduleId: { $in: moduleIds } };
+
+    const result = await paginateQuery(Quiz, queryFilter, page, limit, [
+      {
+        path: 'moduleId',
+        select: 'title courseId',
+        populate: {
+          path: 'courseId',
+          select: 'title'
+        }
+      }
+    ]);
+
+    return successResponse(res, "Course quizzes fetched successfully.", result);
+  } catch (error) {
+    console.error("❌ Error fetching course quizzes:", error);
+    return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
   }
 };

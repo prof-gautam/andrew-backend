@@ -22,6 +22,10 @@ router.post(
 /**  Submit, Update, Report **/
 router.patch("/:quizId/update", authMiddleware, quizController.updateQuiz)
 router.post("/:quizId/submit", authMiddleware, quizController.submitQuiz)
-router.get("/:quizId/report", authMiddleware, quizController.getQuizReport) // 🆕
+router.get("/:quizId/report", authMiddleware, quizController.getQuizReport)
+router.get('/', authMiddleware, quizController.getAllUserQuizzes);
+router.get('/course/:courseId', authMiddleware, quizController.getAllQuizzesByCourse);
+
+
 
 module.exports = router
