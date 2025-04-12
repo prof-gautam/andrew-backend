@@ -1,6 +1,7 @@
 const Quiz = require("../models/quizModel")
 const Module = require("../models/moduleModel")
 const Course = require("../models/courseModel")
+const QuizReport = require("../models/quizReportModel");
 const { successResponse, errorResponse } = require("../utils/responseHelper")
 const { httpStatusCodes } = require("../utils/httpStatusCodes")
 const OpenAI = require("openai")
@@ -10,6 +11,9 @@ const {
   evaluateOpenEnded,
   evaluateCoding,
 } = require("../utils/quizEvaluator")
+
+const {generateQuizReport} = require("../utils/generateQuizReport")
+
 
 // ✅ Initialize DeepSeek API
 const openai = new OpenAI({
@@ -213,66 +217,205 @@ exports.updateQuiz = async (req, res) => {
  */
 exports.submitQuiz = async (req, res) => {
   try {
-    const { quizId } = req.params
-    const { userAnswers } = req.body
+    const { quizId } = req.params;
+    const { userAnswers, timeTaken } = req.body; // ⏱️ timeTaken from frontend in seconds
+    const userId = req.user.userId;
 
-    const quiz = await Quiz.findById(quizId)
+    const quiz = await Quiz.findById(quizId);
     if (!quiz) {
-      return errorResponse(res, "Quiz not found.", httpStatusCodes.NOT_FOUND)
+      return errorResponse(res, "Quiz not found.", httpStatusCodes.NOT_FOUND);
     }
 
     // Auto-grading for MCQ and True/False only
-    let obtainedMarks = 0
-    let evaluatedAnswers = []
+    let obtainedMarks = 0;
+    let evaluatedAnswers = [];
 
     quiz.questions.forEach((question) => {
       const userAnswer = userAnswers.find(
         (ans) => ans.questionId.toString() === question._id.toString()
-      )
+      );
 
       if (userAnswer) {
         const isCorrect =
           ["MCQ", "True/False"].includes(question.questionType) &&
-          userAnswer.answer === question.correctAnswer
+          userAnswer.answer === question.correctAnswer;
 
-        if (isCorrect) obtainedMarks++
+        if (isCorrect) obtainedMarks++;
 
         evaluatedAnswers.push({
           questionId: question._id,
           answer: userAnswer.answer,
           isCorrect: isCorrect || false,
-        })
+        });
       }
-    })
+    });
 
-    const percentage =
-      ((obtainedMarks / quiz.totalQuestions) * 100).toFixed(2) + "%"
-
-    // Determine next attempt number
-    const attemptNumber = quiz.attempts.length + 1
+    const percentage = ((obtainedMarks / quiz.totalQuestions) * 100).toFixed(2) + "%";
+    const attemptNumber = quiz.attempts.length + 1;
 
     quiz.attempts.push({
       attemptNumber,
       obtainedMarks,
       percentage,
       isCompleted: true,
+      timeTaken: timeTaken || 0, // ⏱️ default to 0 if not passed
       answers: evaluatedAnswers,
-    })
+    });
 
-    await quiz.save()
+    await quiz.save();
+
+    // 🧠 Background AI Report Generation
+    generateQuizReport(userId, quiz._id, attemptNumber);
 
     return successResponse(res, "Quiz submitted successfully.", {
       attemptNumber,
       obtainedMarks,
       totalQuestions: quiz.totalQuestions,
       percentage,
-    })
+      timeTaken: timeTaken || 0,
+    });
   } catch (error) {
-    console.error("❌ Error submitting quiz:", error)
+    console.error("❌ Error submitting quiz:", error);
     return errorResponse(
       res,
       "Internal server error.",
       httpStatusCodes.INTERNAL_SERVER_ERROR
-    )
+    );
   }
+};
+
+
+/**
+ * @route GET /api/v1/quizzes/:quizId/report
+ * @desc Get quiz report for the latest attempt
+ */
+exports.getQuizReport = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.userId;
+
+    const report = await QuizReport.findOne({ quizId, userId }).sort({ generatedAt: -1 });
+    if (!report) {
+      return errorResponse(res, "No quiz report found.", httpStatusCodes.NOT_FOUND);
+    }
+
+    return successResponse(res, "Report retrieved", report);
+  } catch (err) {
+    console.error("❌ Fetching report failed:", err);
+    return errorResponse(res, "Internal server error", httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};
+
+
+/**
+ * @route POST /api/v1/quizzes/module/:moduleId/adaptive/:aiId
+ * @desc Generate a new adaptive quiz based on weak areas
+ */
+
+exports.generateAdaptiveQuizForTopic = async (req, res) => {
+  try {
+    const { moduleId, aiId } = req.params;
+    const userId = req.user.userId;
+
+    // ✅ Validate module and course
+    const module = await Module.findById(moduleId).populate("courseId");
+    if (!module) {
+      return errorResponse(res, "Module not found.", httpStatusCodes.NOT_FOUND);
+    }
+
+    const course = module.courseId;
+    if (!course || !course.quizConfig) {
+      return errorResponse(res, "Course or quiz config not found.", httpStatusCodes.BAD_REQUEST);
+    }
+
+    // ✅ Find the report where this aiId exists
+    const report = await QuizReport.findOne({
+      moduleId,
+      userId,
+      "aiRecommendations.topics._id": aiId
+    });
+
+    if (!report) {
+      return errorResponse(res, "Topic not found in any past reports.", httpStatusCodes.NOT_FOUND);
+    }
+
+    // ✅ Find that specific topic
+    const topic = report.aiRecommendations.topics.find(t => t._id.toString() === aiId);
+    if (!topic) {
+      return errorResponse(res, "AI recommendation topic not found.", httpStatusCodes.NOT_FOUND);
+    }
+
+    if (topic.quizId) {
+      return errorResponse(res, "Quiz already generated for this topic.", httpStatusCodes.BAD_REQUEST);
+    }
+
+    // ✅ Build AI prompt
+    const prompt = `
+You are an expert AI-based quiz generator.
+
+Create a quiz ONLY about the topic: "${topic.label}"
+
+Module Title: ${module.title}
+
+Quiz Requirements:
+- Total questions: ${course.quizConfig.numberOfQuestions}
+- Allowed types: ${course.quizConfig.quizTypes.join(", ")}
+- Difficulty: ${course.quizConfig.difficultyLevel}
+
+Return valid JSON:
+{
+  "title": "Quiz Title",
+  "description": "Short description",
+  "questions": [
+    {
+      "questionText": "...",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": "A",
+      "questionType": "MCQ"
+    }
+  ]
 }
+Do NOT return markdown or explanation.
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+    });
+
+    const raw = response.choices[0].message.content.trim();
+    const jsonStart = raw.indexOf("{");
+    const jsonEnd = raw.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return errorResponse(res, "AI did not return valid JSON.", httpStatusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    const aiText = raw.substring(jsonStart, jsonEnd + 1);
+    const quizData = JSON.parse(aiText);
+
+    // ✅ Save the quiz
+    const newQuiz = await Quiz.create({
+      moduleId,
+      title: quizData.title,
+      description: quizData.description,
+      questions: quizData.questions,
+      totalQuestions: quizData.questions.length,
+      maxScore: quizData.questions.length,
+      timeLimit: course.quizConfig.isTimed ? course.quizConfig.timeDuration : null,
+    });
+
+    // ✅ Update the topic in aiRecommendations with quizId
+    topic.quizId = newQuiz._id;
+    await report.save();
+
+    return successResponse(res, "Adaptive quiz generated for topic.", {
+      quizId: newQuiz._id,
+      quiz: newQuiz,
+    });
+
+  } catch (error) {
+    console.error("❌ Error generating adaptive quiz for topic:", error);
+    return errorResponse(res, "Internal server error.", httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};

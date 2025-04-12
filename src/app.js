@@ -27,7 +27,8 @@ const allowedOrigins = [
     'https://andrew-frontend-git-main-phuyelgautam3gmailcoms-projects.vercel.app',
     'https://andrew-frontend-pctqiww9h-phuyelgautam3gmailcoms-projects.vercel.app',
     'http://localhost:3000',
-    'http://localhost:4000'
+    'http://localhost:4000',
+    'http://localhost:5173'
   ];
   
   app.use(cors({

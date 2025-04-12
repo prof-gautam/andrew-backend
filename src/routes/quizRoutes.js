@@ -1,21 +1,27 @@
-const express = require('express');
-const router = express.Router();
-const quizController = require('../controllers/quizController'); // Ensure this path is correct!
-const authMiddleware = require('../middlewares/authMiddleware');
+const express = require("express")
+const router = express.Router()
+const quizController = require("../controllers/quizController")
+const authMiddleware = require("../middlewares/authMiddleware")
 
-// ✅ Get an existing quiz for a module
-router.get('/module/:moduleId', authMiddleware, quizController.getQuizByModule);
+//  Get quizzes
+router.get("/module/:moduleId", authMiddleware, quizController.getQuizByModule)
+router.get("/:quizId", authMiddleware, quizController.getQuizById)
 
-// ✅ Get a quiz by its ID
-router.get('/:quizId', authMiddleware, quizController.getQuizById);
+// Generate quizzes
+router.post(
+  "/module/:moduleId/generate",
+  authMiddleware,
+  quizController.generateQuiz
+)
+router.post(
+  "/module/:moduleId/adaptive/:aiId/generate",
+  authMiddleware,
+  quizController.generateAdaptiveQuizForTopic
+)
 
-// ✅ Generate a new quiz for a module
-router.post('/module/:moduleId/generate', authMiddleware, quizController.generateQuiz);
+/**  Submit, Update, Report **/
+router.patch("/:quizId/update", authMiddleware, quizController.updateQuiz)
+router.post("/:quizId/submit", authMiddleware, quizController.submitQuiz)
+router.get("/:quizId/report", authMiddleware, quizController.getQuizReport) // 🆕
 
-// ✅ Update an existing quiz (marks, completion status, answers)
-router.patch('/:quizId/update', authMiddleware, quizController.updateQuiz);
-
-// ✅ Submit a quiz & calculate score
-router.post('/:quizId/submit', authMiddleware, quizController.submitQuiz);
-
-module.exports = router;
+module.exports = router
