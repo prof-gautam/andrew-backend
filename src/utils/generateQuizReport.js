@@ -50,7 +50,10 @@ Return JSON:
   "struggledWith": ["...", "..."],
   "aiSummary": "short AI summary of performance",
   "aiRecommendations": {
-     "topics": ["Functions in JS", "Loops", "Conditional Statements"]
+    "topics": [
+      { "title": "Functions in JS", "description": "Struggled with function scope" },
+      { "title": "Loops", "description": "Had difficulty in loop conditions" }
+    ]
   }
 }
 `;
@@ -72,23 +75,15 @@ Return JSON:
     const reportJson = raw.substring(jsonStart, jsonEnd + 1);
     const data = JSON.parse(reportJson);
 
+    // 🧠 Format topics with unique ObjectIds
     const formattedTopics = Array.isArray(data.aiRecommendations?.topics)
-      ? [
-          ...new Map(
-            data.aiRecommendations.topics.map((label) => {
-              const trimmed = label.trim();
-              return [
-                trimmed.toLowerCase(),
-                {
-                  _id: new mongoose.Types.ObjectId(),
-                  label: trimmed,
-                  isQuizGenerated: false,
-                  quizId: null,
-                },
-              ];
-            })
-          ).values()
-        ]
+      ? data.aiRecommendations.topics.map((t) => ({
+          _id: new mongoose.Types.ObjectId(),
+          title: t.title || '',
+          description: t.description || '',
+          isQuizGenerated: false,
+          quizId: null,
+        }))
       : [];
 
     const trend = quiz.attempts
@@ -119,7 +114,7 @@ Return JSON:
         topics: formattedTopics,
       },
       trend,
-      isQuizGenerated: false, // 🆕 Top-level flag
+      isQuizGenerated: false,
     });
 
     console.log("✅ Quiz report generated with ID:", report._id);

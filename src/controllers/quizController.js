@@ -346,15 +346,20 @@ exports.generateAdaptiveQuizForTopic = async (req, res) => {
       return errorResponse(res, "AI recommendation topic not found.", httpStatusCodes.NOT_FOUND);
     }
 
-    if (topic.quizId) {
-      return errorResponse(res, "Quiz already generated for this topic.", httpStatusCodes.BAD_REQUEST);
+    if (topic.isQuizGenerated === true || topic.quizId) {
+      return errorResponse(
+        res,
+        "Quiz has already been generated for this topic.",
+        httpStatusCodes.BAD_REQUEST
+      );
     }
+    
 
     // ✅ Build AI prompt
     const prompt = `
 You are an expert AI-based quiz generator.
 
-Create a quiz ONLY about the topic: "${topic.label}"
+Create a quiz ONLY about the topic: "${topic.title}"
 
 Module Title: ${module.title}
 
@@ -406,8 +411,13 @@ Do NOT return markdown or explanation.
       timeLimit: course.quizConfig.isTimed ? course.quizConfig.timeDuration : null,
     });
 
-    // ✅ Update the topic in aiRecommendations with quizId
-    topic.quizId = newQuiz._id;
+    // ✅ Update the topic in aiRecommendations with quizId and isQuizGenerated
+    const topicToUpdate = report.aiRecommendations.topics.find(t => t._id.toString() === aiId);
+    if (topicToUpdate) {
+      topicToUpdate.quizId = newQuiz._id;
+      topicToUpdate.isQuizGenerated = true;
+    }
+
     await report.save();
 
     return successResponse(res, "Adaptive quiz generated for topic.", {

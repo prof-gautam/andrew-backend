@@ -26,13 +26,14 @@ const quizReportSchema = new mongoose.Schema({
     topics: [
       {
         _id: { type: mongoose.Schema.Types.ObjectId, required: true }, // Unique topic ID
-        isQuizGenerated: { type: Boolean, default: false }, // Optional global flag
-        label: { type: String, required: true },                        // e.g. "Loops in JS"
-        quizId: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz" }  // ✅ Optional: if a quiz is already generated
+        title: { type: String },                                       // ✅ Title of the recommended topic
+        description: { type: String },                                 // ✅ Description or rationale
+        isQuizGenerated: { type: Boolean, default: false },
+        quizId: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz" }
       }
     ]
   },
-  isQuizGenerated: { type: Boolean, default: false }, // Optional global flag
+  isQuizGenerated: { type: Boolean, default: false },
   generatedAt: { type: Date, default: Date.now },
 });
 
