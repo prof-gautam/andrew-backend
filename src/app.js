@@ -25,7 +25,9 @@ app.use(cookieParser());
 const allowedOrigins = [
     'https://andrew.gautamphuyal.com.np',
     'https://andrew-frontend-git-main-phuyelgautam3gmailcoms-projects.vercel.app',
-    'https://andrew-frontend-pctqiww9h-phuyelgautam3gmailcoms-projects.vercel.app'
+    'https://andrew-frontend-pctqiww9h-phuyelgautam3gmailcoms-projects.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:4000'
   ];
   
   app.use(cors({
