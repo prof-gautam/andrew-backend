@@ -24,8 +24,9 @@ const quizSchema = new mongoose.Schema({
       attemptNumber: { type: Number, required: true },
       submittedAt: { type: Date, default: Date.now },
       obtainedMarks: { type: Number, default: 0 },
-      percentage: { type: String }, // "80%" string for readability
+      percentage: { type: String }, // e.g. "80%"
       isCompleted: { type: Boolean, default: true },
+      timeTaken: { type: Number, default: 0 }, // 🆕 Time in seconds
       answers: [
         {
           questionId: { type: mongoose.Schema.Types.ObjectId, required: true },
