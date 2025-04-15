@@ -286,21 +286,40 @@ exports.submitQuiz = async (req, res) => {
 };
 
 
-/**
- * @route GET /api/v1/quizzes/:quizId/report
- * @desc Get quiz report for the latest attempt
- */
 exports.getQuizReport = async (req, res) => {
   try {
     const { quizId } = req.params;
     const userId = req.user.userId;
 
-    const report = await QuizReport.findOne({ quizId, userId }).sort({ generatedAt: -1 });
+    // Get the latest report for the user and quiz
+    const report = await QuizReport.findOne({ quizId, userId })
+      .sort({ generatedAt: -1 })
+      .lean();
+
     if (!report) {
-      return errorResponse(res, "No quiz report found.", httpStatusCodes.NOT_FOUND);
+      return errorResponse(res, "No quiz attempt or report found.", httpStatusCodes.NOT_FOUND);
     }
 
-    return successResponse(res, "Report retrieved", report);
+    // Handle report status
+    switch (report.reportStatus) {
+      case "pending":
+        return res.status(202).json({
+          status: "processing",
+          message: "Report is still being generated. Please check back soon.",
+        });
+
+      case "failed":
+        return res.status(500).json({
+          status: "failed",
+          message: "Quiz report generation failed. Please try again later.",
+        });
+
+      case "completed":
+        return successResponse(res, "Quiz report retrieved successfully.", report);
+
+      default:
+        return errorResponse(res, "Unexpected report status.", httpStatusCodes.INTERNAL_SERVER_ERROR);
+    }
   } catch (err) {
     console.error("❌ Fetching report failed:", err);
     return errorResponse(res, "Internal server error", httpStatusCodes.INTERNAL_SERVER_ERROR);

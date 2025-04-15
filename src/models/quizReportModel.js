@@ -41,6 +41,11 @@ const quizReportSchema = new mongoose.Schema({
       }
     ],
     isQuizGenerated: { type: Boolean, default: false },
+    reportStatus: {
+        type: String,
+        enum: ['pending', 'completed', 'failed'],
+        default: 'pending'
+      },
     generatedAt: { type: Date, default: Date.now },
   });
   
