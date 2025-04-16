@@ -6,6 +6,9 @@ const { httpStatusCodes } = require('../utils/httpStatusCodes');
 const { paginateQuery } = require('../utils/paginationHelper');
 const mongoose = require('mongoose');
 const { validateQuizConfig } = require('../utils/quizValidationHelper');
+const Module = require('../models/moduleModel');
+const Quiz = require('../models/quizModel');
+const QuizReport = require('../models/quizReportModel');
 
 
 /**
@@ -218,23 +221,44 @@ exports.updateCourse = async (req, res) => {
  * @route DELETE /api/v1/courses/:courseId
  * @desc Delete a course and its materials
  */
+
 exports.deleteCourse = async (req, res) => {
-    try {
-        const { courseId } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(courseId)) {
-            return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
-        }
+  try {
+    const { courseId } = req.params;
 
-        const course = await Course.findByIdAndDelete(courseId);
-        if (!course) {
-            return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
-        }
-
-        await Material.deleteMany({ courseId });
-
-        return successResponse(res, 'Course and associated materials deleted successfully.');
-    } catch (error) {
-        console.error('Error deleting course:', error);
-        return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
     }
+
+    // ✅ 1. Find and delete the course
+    const course = await Course.findByIdAndDelete(courseId);
+    if (!course) {
+      return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
+    }
+
+    // ✅ 2. Delete associated materials
+    await Material.deleteMany({ _id: { $in: course.materials } });
+
+    // ✅ 3. Get all module IDs for this course
+    const modules = await Module.find({ courseId });
+    const moduleIds = modules.map(m => m._id);
+
+    // ✅ 4. Get all quizzes under those modules
+    const quizzes = await Quiz.find({ moduleId: { $in: moduleIds } });
+    const quizIds = quizzes.map(q => q._id);
+
+    // ✅ 5. Delete quizzes
+    await Quiz.deleteMany({ _id: { $in: quizIds } });
+
+    // ✅ 6. Delete quiz reports associated with those quizzes
+    await QuizReport.deleteMany({ quizId: { $in: quizIds } });
+
+    // ✅ 7. Finally, delete modules
+    await Module.deleteMany({ courseId });
+
+    return successResponse(res, 'Course and all associated data deleted successfully.');
+  } catch (error) {
+    console.error('❌ Error deleting course:', error);
+    return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
 };
