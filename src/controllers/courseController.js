@@ -9,6 +9,7 @@ const { validateQuizConfig } = require('../utils/quizValidationHelper');
 const Module = require('../models/moduleModel');
 const Quiz = require('../models/quizModel');
 const QuizReport = require('../models/quizReportModel');
+const updateCourseStatusIfDue = require('../utils/updateCourseStatusIfDue')
 
 
 /**
@@ -134,7 +135,7 @@ exports.getCourseById = async (req, res) => {
         if (!course) {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
-
+        updateCourseStatusIfDue(course);
         return successResponse(res, 'Course details retrieved successfully.', course);
     } catch (error) {
         console.error('Error fetching course:', error);
@@ -156,6 +157,7 @@ exports.getAllCourses = async (req, res) => {
         }
 
         const paginatedCourses = await paginateQuery(Course, query, page, limit);
+        paginatedCourses.forEach(updateCourseStatusIfDue);
         return successResponse(res, 'Courses retrieved successfully.', paginatedCourses);
     } catch (error) {
         console.error('Error fetching courses:', error);
@@ -209,6 +211,7 @@ exports.updateCourse = async (req, res) => {
         if (goal) course.goal = goal;
 
         await course.save();
+        updateCourseStatusIfDue(course);
         return successResponse(res, 'Course updated successfully.', course);
     } catch (error) {
         console.error('Error updating course:', error);
@@ -262,3 +265,35 @@ exports.deleteCourse = async (req, res) => {
     return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
   }
 };
+
+/**
+ * @route PUT /api/v1/courses/:courseId/mark-completed
+ * @desc Mark a course as completed
+ */
+exports.markCourseAsCompleted = async (req, res) => {
+    try {
+      const { courseId } = req.params;
+  
+      if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
+      }
+  
+      const course = await Course.findById(courseId);
+      if (!course) {
+        return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
+      }
+  
+      if (course.courseStatus === 'completed') {
+        return errorResponse(res, 'Course is already marked as completed.', httpStatusCodes.BAD_REQUEST);
+      }
+  
+      course.courseStatus = 'completed';
+      await course.save();
+  
+      return successResponse(res, 'Course marked as completed successfully.', course);
+    } catch (error) {
+      console.error('❌ Error marking course as completed:', error);
+      return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+    }
+  };
+  

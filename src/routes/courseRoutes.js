@@ -18,5 +18,7 @@ router.put('/:courseId',upload.none(), authMiddleware, courseController.updateCo
 
 // ✅ Delete a course (Deletes associated materials)
 router.delete('/:courseId', authMiddleware, courseController.deleteCourse);
+router.put('/:courseId/mark-completed', courseController.markCourseAsCompleted);
+
 
 module.exports = router;

@@ -113,14 +113,19 @@ exports.generateModules = async (req, res) => {
 
             modules.push(newModule);
         }
-
-        // ✅ Remove used materials from `unprocessedMaterials`
+        
         await Course.findByIdAndUpdate(courseId, {
-            $pullAll: { unprocessedMaterials: unprocessedMaterials.map(m => m._id) }, // Remove from unprocessedMaterials
-            $push: { materials: { $each: unprocessedMaterials.map(m => m._id) } }, // Move to processed materials list
-            $push: { modules: modules.map(m => m._id) }, // Link generated modules
-            $set: { "learningSummary.totalModules": modules.length } // Update module count
+            $pullAll: { unprocessedMaterials: unprocessedMaterials.map(m => m._id) },
+            $push: {
+                materials: { $each: unprocessedMaterials.map(m => m._id) },
+                modules: { $each: modules.map(m => m._id) }
+            },
+            $set: {
+                "learningSummary.totalModules": (course.learningSummary.totalModules || 0) + modules.length,
+                courseStatus: 'on-track'
+            }
         });
+        
 
         return successResponse(res, 'Modules generated successfully.', { modules });
     } catch (error) {
