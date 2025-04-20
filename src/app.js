@@ -9,6 +9,7 @@ const courseRoutes = require('./routes/courseRoutes');
 const materialRoutes = require('./routes/materialRoutes');
 const moduleRoutes = require('./routes/moduleRoutes');
 const quizRoutes = require('./routes/quizRoutes');
+const activityRoutes = require('./routes/activityRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -68,6 +69,9 @@ app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/materials', materialRoutes);
 app.use('/api/v1/modules', moduleRoutes);
 app.use('/api/v1/quizzes', quizRoutes);
+app.use('/api/v1/activities', activityRoutes);
+
+
 
 // Handle unknown routes
 app.use('/api/v1/*', (req, res) => {
