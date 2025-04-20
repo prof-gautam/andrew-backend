@@ -292,20 +292,26 @@ exports.getAllModulesByCourse = async (req, res) => {
  */
 exports.getAllModules = async (req, res) => {
     try {
-        const { page, limit, search } = req.query;
-        const query = {};
-
-        // Optional search on title
-        if (search) {
-            query.title = { $regex: search, $options: 'i' };
-        }
-
-        const paginatedModules = await paginateQuery(Module, query, page, limit);
-
-        return successResponse(res, 'All modules retrieved successfully.', paginatedModules);
+      const { page, limit, search } = req.query;
+      const userId = req.user.userId;
+  
+      // Step 1: Find all courses created by the user
+      const courses = await Course.find({ userId }).select('_id');
+      const courseIds = courses.map(course => course._id);
+  
+      // Step 2: Build query for modules under those courses
+      const query = { courseId: { $in: courseIds } };
+      if (search) {
+        query.title = { $regex: search, $options: 'i' };
+      }
+  
+      // Step 3: Paginate modules
+      const paginatedModules = await paginateQuery(Module, query, page, limit);
+  
+      return successResponse(res, 'Modules for user retrieved successfully.', paginatedModules);
     } catch (error) {
-        console.error('❌ Error fetching all modules:', error);
-        return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+      console.error('❌ Error fetching modules for user:', error);
+      return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
-};
-
+  };
+  

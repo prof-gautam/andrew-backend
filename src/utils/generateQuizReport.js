@@ -30,7 +30,7 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
     const incorrectAnswers = attempt.answers.length - correctAnswers;
     const percentage = ((correctAnswers / quiz.totalQuestions) * 100).toFixed(2);
 
-    // 🟡 Step 1: Create initial report with status "pending"
+    // Step 1: Create initial report with status "pending"
     reportDoc = await QuizReport.create({
       userId,
       quizId,
@@ -52,7 +52,7 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
       reportStatus: "pending",
     });
 
-    // 🧠 AI Prompt
+    //AI Prompt
     const prompt = `
     You are an expert learning performance evaluator.
     
@@ -127,7 +127,6 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
       ? data.studyMaterials
       : [];
 
-    // 🟢 Step 2: Update report with AI data and mark as completed
     Object.assign(reportDoc, {
       strongestArea: data.strongestArea,
       weakestArea: data.weakestArea,

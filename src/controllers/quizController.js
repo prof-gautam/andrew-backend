@@ -337,7 +337,7 @@ exports.generateAdaptiveQuizForTopic = async (req, res) => {
     const { moduleId, aiId } = req.params;
     const userId = req.user.userId;
 
-    // ✅ Validate module and course
+    // Validate module and course
     const module = await Module.findById(moduleId).populate("courseId");
     if (!module) {
       return errorResponse(res, "Module not found.", httpStatusCodes.NOT_FOUND);
@@ -348,7 +348,7 @@ exports.generateAdaptiveQuizForTopic = async (req, res) => {
       return errorResponse(res, "Course or quiz config not found.", httpStatusCodes.BAD_REQUEST);
     }
 
-    // ✅ Find the report where this aiId exists
+    // Find the report where this aiId exists
     const report = await QuizReport.findOne({
       moduleId,
       userId,
@@ -359,7 +359,7 @@ exports.generateAdaptiveQuizForTopic = async (req, res) => {
       return errorResponse(res, "Topic not found in any past reports.", httpStatusCodes.NOT_FOUND);
     }
 
-    // ✅ Find that specific topic
+    // Find that specific topic
     const topic = report.aiRecommendations.topics.find(t => t._id.toString() === aiId);
     if (!topic) {
       return errorResponse(res, "AI recommendation topic not found.", httpStatusCodes.NOT_FOUND);
