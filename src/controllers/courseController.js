@@ -157,7 +157,11 @@ exports.getAllCourses = async (req, res) => {
         }
 
         const paginatedCourses = await paginateQuery(Course, query, page, limit);
-        paginatedCourses.forEach(updateCourseStatusIfDue);
+
+        if (Array.isArray(paginatedCourses.data)) {
+          paginatedCourses.data.forEach(updateCourseStatusIfDue);
+        }
+        
         return successResponse(res, 'Courses retrieved successfully.', paginatedCourses);
     } catch (error) {
         console.error('Error fetching courses:', error);
