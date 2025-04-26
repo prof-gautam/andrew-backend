@@ -23,7 +23,7 @@ const courseSchema = new mongoose.Schema({
     learningSummary: {
         totalModules: { type: Number, default: 0 },
         completedModules: { type: Number, default: 0 },
-        firstIncompleteModule: { type: mongoose.Schema.Types.ObjectId, ref: 'Module', default: null },
+        firstIncompleteModule: { type: String},
         courseGrade: { type: Number, min: 0, max: 100, default: null },
         daysLeft: { type: Number, default: null } // we will make this dynamic with virtual
     },

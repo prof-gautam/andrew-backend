@@ -155,7 +155,7 @@ exports.getRecommendations = async (req, res) => {
     const prompt = `
 You are a personal learning assistant.
 
-Based on this user's activity, suggest 5-6 personalized study actions.
+Based on this user's activity, suggest 8-9 personalized study actions.
 
 Recent quiz reports:
 ${JSON.stringify(quizInsights, null, 2)}
@@ -239,5 +239,26 @@ Return only this JSON format:
   } catch (error) {
     console.error("❌ Error generating recommendations:", error);
     return errorResponse(res, "Failed to generate recommendations.", httpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};
+
+exports.getModuleRecommendations = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const recommendationDoc = await UserRecommendation.findOne({ userId });
+
+    if (!recommendationDoc) {
+      return errorResponse(res, "No recommendations found for this user.", httpStatusCodes.NOT_FOUND);
+    }
+
+    const moduleRecommendations = recommendationDoc.recommendations.filter(
+      (rec) => rec.type === "module"
+    );
+
+    return successResponse(res, "Module recommendations fetched successfully.", moduleRecommendations);
+  } catch (error) {
+    console.error("❌ Error fetching module recommendations:", error);
+    return errorResponse(res, "Internal server error.", httpStatusCodes.INTERNAL_SERVER_ERROR);
   }
 };

@@ -144,7 +144,7 @@ exports.generateModules = async (req, res) => {
             $set: {
               "learningSummary.totalModules": (course.learningSummary.totalModules || 0) + modules.length,
               "learningSummary.completedModules": 0,
-              "learningSummary.firstIncompleteModule": modules.length > 0 ? modules[0]._id : null,
+              "learningSummary.firstIncompleteModule": modules.length > 0 ? modules[0].title : null,
               courseStatus: 'on-track'
             }
           });
@@ -382,7 +382,7 @@ exports.getAllModules = async (req, res) => {
  * @route PUT /api/v1/modules/:moduleId/mark-completed
  * @desc Mark a module as completed
  */
-exports.markModuleAsCompleted = async (req, res) => {
+  exports.markModuleAsCompleted = async (req, res) => {
     try {
       const { moduleId } = req.params;
   
@@ -402,10 +402,33 @@ exports.markModuleAsCompleted = async (req, res) => {
         return errorResponse(res, 'Module is already marked as completed.', httpStatusCodes.BAD_REQUEST);
       }
   
-      // ✅ Mark as completed
+      // ✅ Mark module as completed
       module.moduleStatus = 'completed';
       module.isCompleted = true;
       await module.save();
+  
+      // ✅ Update Course Learning Summary
+      const course = await Course.findById(module.courseId).populate('modules');
+  
+      if (!course) {
+        return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
+      }
+  
+      // 1. Increment completed modules
+      course.learningSummary.completedModules = (course.learningSummary.completedModules || 0) + 1;
+  
+      // 2. Find the first incomplete module (ordered by `order`)
+      const nextIncompleteModule = course.modules.find(m => !m.isCompleted);
+      console.log(nextIncompleteModule);
+      
+
+      course.learningSummary.firstIncompleteModule = nextIncompleteModule ? nextIncompleteModule.title: null;  
+      // 3. If all modules completed, optionally you can mark course as completed here if you want:
+      // if (course.learningSummary.completedModules === course.learningSummary.totalModules) {
+      //   course.courseStatus = 'completed';
+      // }
+  
+      await course.save();
   
       return successResponse(res, 'Module marked as completed successfully.', module);
     } catch (error) {
@@ -413,3 +436,4 @@ exports.markModuleAsCompleted = async (req, res) => {
       return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
   };
+  

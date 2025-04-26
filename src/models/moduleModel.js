@@ -10,7 +10,7 @@ const moduleSchema = new mongoose.Schema({
   quizzes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Quiz' }],
   isCompleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
-  timeline: { type: Number, required: true },
+  timeline: { type: Number, required: true, default: 2 },
   moduleStatus: {
     type: String,
     enum: ['new', 'on-track', 'late', 'completed'],
