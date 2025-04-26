@@ -523,36 +523,81 @@ const newQuiz = await Quiz.create({
  * @desc Get all quizzes created under courses of the logged-in user
  * @query page, limit
  */
-exports.getAllUserQuizzes = async (req, res) => {
+;exports.getAllUserQuizzes = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { page = 1, limit = 10 } = req.query;
 
+    // 1. Get user courses
     const userCourses = await Course.find({ userId }).select('_id');
     const courseIds = userCourses.map(c => c._id);
 
+    if (courseIds.length === 0) {
+      return successResponse(res, "No courses found for user.", {
+        data: [],
+        pagination: { totalItems: 0, currentPage: page, totalPages: 0, limit }
+      });
+    }
+
+    // 2. Get modules from user's courses
     const modules = await Module.find({ courseId: { $in: courseIds } }).select('_id');
     const moduleIds = modules.map(m => m._id);
 
-    const queryFilter = { moduleId: { $in: moduleIds } };
+    if (moduleIds.length === 0) {
+      return successResponse(res, "No modules found for user.", {
+        data: [],
+        pagination: { totalItems: 0, currentPage: page, totalPages: 0, limit }
+      });
+    }
 
-    const result = await paginateQuery(Quiz, queryFilter, page, limit, [
-      {
+    // 3. Get quizzes from these modules
+    const allQuizzes = await Quiz.find({ moduleId: { $in: moduleIds } })
+      .populate({
         path: 'moduleId',
         select: 'title courseId',
         populate: {
           path: 'courseId',
           select: 'title'
         }
-      }
-    ]);
+      })
+      .sort({ createdAt: -1 });
 
-    return successResponse(res, "User's quizzes fetched successfully.", result);
+    if (!allQuizzes || allQuizzes.length === 0) {
+      return successResponse(res, "No quizzes found for user.", {
+        data: [],
+        pagination: { totalItems: 0, currentPage: page, totalPages: 0, limit }
+      });
+    }
+
+    // 4. Paginate manually
+    const totalItems = allQuizzes.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const startIndex = (page - 1) * limit;
+    const paginatedQuizzes = allQuizzes.slice(startIndex, startIndex + limit);
+
+    // 5. Add moduleName and courseName
+    const updatedDocs = paginatedQuizzes.map((quiz) => {
+      const quizObj = quiz.toObject();
+      return {
+        ...quizObj,
+        moduleName: quizObj.moduleId?.title || '',
+        courseName: quizObj.moduleId?.courseId?.title || ''
+      };
+    });
+
+    // 6. Final response
+    return successResponse(res, "User's quizzes fetched successfully.", {
+      data: updatedDocs,
+      pagination: { totalItems, currentPage: page, totalPages, limit }
+    });
+
   } catch (error) {
     console.error("❌ Error fetching user's quizzes:", error);
     return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
   }
 };
+
+
 
 /**
  * @route GET /api/v1/quizzes/course/:courseId
