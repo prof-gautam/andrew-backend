@@ -42,7 +42,7 @@ courseSchema.virtual('daysLeft').get(function () {
 
   if (!createdAt || !timelineInWeeks) return null;
 
-  const deadline = new Date(createdAt.getTime() + timelineInWeeks * 7 * 24 * 60 * 60 * 1000);
+  const deadline = new Date(createdAt.getTime() + timelineInWeeks * 24 * 60 * 60 * 1000);
   const now = new Date();
 
   const timeLeftInMs = deadline - now;

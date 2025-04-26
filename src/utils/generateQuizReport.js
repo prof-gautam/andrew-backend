@@ -80,12 +80,12 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
         {
           "title": "Resource title",
           "description": "What it teaches",
-          "url": "https://..."
+          "url": "A working url"
         },
         {
           "title": "Another resource",
           "description": "Short content summary",
-          "url": "https://..."
+          "url": "A working url"
         }
       ]
     }
@@ -95,6 +95,7 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
     - Keep each value under 10 words except aiRecommendations description.
     - Use real or realistic resource URLs.
     - No markdown or extra text, just JSON.
+    - Check if url is working or not, dont give fake url.
     `;
     
 

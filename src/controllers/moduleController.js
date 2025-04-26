@@ -231,7 +231,7 @@ exports.updateModules = async (req, res) => {
         - Maximum modules: 10
         - Strict JSON only. No explanations, markdown, or extra text outside JSON.
         - Timeline (in days) must be an integer.
-        - If timeline cannot divide perfectly, balance by adding or subtracting 1-2 days.
+        - Time must be based on need of module and while adding all time of modules it should be equal to course timeline.
         
         --- START NEW MATERIAL TEXT ---
         ${extractedText}

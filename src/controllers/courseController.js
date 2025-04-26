@@ -22,8 +22,8 @@ exports.createCourse = async (req, res) => {
         const uploadedMaterials = req.files || [];
         const parsedTimeline = Number(timeline);
 
-        if (!title || isNaN(parsedTimeline) || !quizConfig) {
-            return errorResponse(res, 'Title, timeline, and quiz configuration are required.', httpStatusCodes.BAD_REQUEST);
+        if (!title || isNaN(parsedTimeline) || !quizConfig || !goal) {
+            return errorResponse(res, 'Title, timeline, goal, and quiz configuration are required.', httpStatusCodes.BAD_REQUEST);
         }
 
         let parsedQuizConfig;
@@ -111,11 +111,20 @@ exports.createCourse = async (req, res) => {
         });
 
         return successResponse(res, 'Course created successfully.', { course, materials: materialList }, httpStatusCodes.CREATED);
+
     } catch (error) {
         console.error('Error creating course:', error);
+
+        // Handle Mongoose validation error specifically
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => err.message);
+            return errorResponse(res, `Validation error: ${messages.join(', ')}`, httpStatusCodes.BAD_REQUEST);
+        }
+
         return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
 };
+
 
 /**
  * @route GET /api/v1/courses/:courseId
@@ -176,7 +185,6 @@ exports.getAllCourses = async (req, res) => {
 exports.updateCourse = async (req, res) => {
     try {
         const { courseId } = req.params;
-        const { title, description, timeline, goal, quizConfig } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return errorResponse(res, 'Invalid Course ID format.', httpStatusCodes.BAD_REQUEST);
@@ -187,35 +195,49 @@ exports.updateCourse = async (req, res) => {
             return errorResponse(res, 'Course not found.', httpStatusCodes.NOT_FOUND);
         }
 
-        // ✅ Handle partial update of quizConfig
-        if (quizConfig) {
+        const updates = req.body;
+        console.log(req.body);
+
+        
+
+        // ✅ Handle quizConfig separately
+        if (updates.quizConfig) {
             let parsedQuizConfig;
 
             try {
-                parsedQuizConfig = typeof quizConfig === 'string' ? JSON.parse(quizConfig) : quizConfig;
+                parsedQuizConfig = typeof updates.quizConfig === 'string'
+                    ? JSON.parse(updates.quizConfig)
+                    : updates.quizConfig;
             } catch (err) {
                 return errorResponse(res, 'Invalid JSON format for quizConfig.', httpStatusCodes.BAD_REQUEST);
             }
 
+            console.log(parsedQuizConfig);
+            
             const validationErrors = validateQuizConfig(parsedQuizConfig);
+            console.log(validationErrors);
+            
             if (validationErrors.length > 0) {
                 return errorResponse(res, validationErrors.join(' '), httpStatusCodes.BAD_REQUEST);
             }
 
+            // Merge existing quizConfig with new updates
             course.quizConfig = {
-                ...course.quizConfig.toObject?.() || course.quizConfig,
-                ...parsedQuizConfig
+                ...(course.quizConfig?.toObject ? course.quizConfig.toObject() : course.quizConfig),
+                ...parsedQuizConfig,
             };
         }
 
-        // ✅ Handle other fields (if provided)
-        if (title) course.title = title;
-        if (description) course.description = description;
-        if (timeline) course.timeline = Number(timeline);
-        if (goal) course.goal = goal;
+        // ✅ Update only provided fields
+        if (updates.title !== undefined) course.title = updates.title;
+        if (updates.description !== undefined) course.description = updates.description;
+        if (updates.timeline !== undefined) course.timeline = Number(updates.timeline);
+        if (updates.goal !== undefined) course.goal = updates.goal;
 
         await course.save();
-        updateCourseStatusIfDue(course);
+
+        updateCourseStatusIfDue(course); // Update course status dynamically if needed
+
         return successResponse(res, 'Course updated successfully.', course);
     } catch (error) {
         console.error('Error updating course:', error);
