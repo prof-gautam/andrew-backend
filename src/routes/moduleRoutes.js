@@ -7,5 +7,7 @@ router.post('/update/:courseId', authMiddleware, moduleController.updateModules)
 router.get('/course/:courseId', authMiddleware, moduleController.getAllModulesByCourse);
 router.get('/', authMiddleware, moduleController.getAllModules); // gives all courses
 router.get('/:moduleId', authMiddleware, moduleController.getModuleById);
+router.put('/:moduleId/mark-completed', authMiddleware, moduleController.markModuleAsCompleted);
+
 
 module.exports = router;

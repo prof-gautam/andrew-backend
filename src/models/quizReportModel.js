@@ -6,6 +6,7 @@ const quizReportSchema = new mongoose.Schema({
     moduleId: { type: mongoose.Schema.Types.ObjectId, ref: "Module", required: true },
     moduleName: { type: String },
     courseName: { type: String },
+    quizTitle: { type: String }, // ✅ Newly added
     attemptNumber: Number,
     percentage: Number,
     correctAnswers: Number,

@@ -25,10 +25,8 @@ const courseSchema = new mongoose.Schema({
         completedModules: { type: Number, default: 0 },
         firstIncompleteModule: { type: mongoose.Schema.Types.ObjectId, ref: 'Module', default: null },
         courseGrade: { type: Number, min: 0, max: 100, default: null },
-        daysLeft: { type: Number, default: null }
+        daysLeft: { type: Number, default: null } // we will make this dynamic with virtual
     },
-
-    // ✅ New field: course status
     courseStatus: {
         type: String,
         enum: ['new', 'on-track', 'late', 'completed'],
@@ -37,5 +35,24 @@ const courseSchema = new mongoose.Schema({
 
     createdAt: { type: Date, default: Date.now }
 });
+
+courseSchema.virtual('daysLeft').get(function () {
+  const createdAt = this.createdAt;
+  const timelineInWeeks = this.timeline; // here timeline is in **weeks**
+
+  if (!createdAt || !timelineInWeeks) return null;
+
+  const deadline = new Date(createdAt.getTime() + timelineInWeeks * 7 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+
+  const timeLeftInMs = deadline - now;
+  const timeLeftInDays = Math.ceil(timeLeftInMs / (1000 * 60 * 60 * 24));
+
+  return timeLeftInDays > 0 ? timeLeftInDays : 0;
+});
+
+// ➡️ Make virtuals visible in JSON
+courseSchema.set('toJSON', { virtuals: true });
+courseSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Course', courseSchema);

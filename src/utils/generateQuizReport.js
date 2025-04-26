@@ -37,6 +37,7 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
       moduleId: module._id,
       moduleName: module.title,
       courseName: course.title,
+      quizTitle: quiz.title,
       attemptNumber,
       percentage,
       correctAnswers,
@@ -149,6 +150,8 @@ exports.generateQuizReport = async (userId, quizId, attemptNumber) => {
       userId,
       quizId,
       moduleId: module._id,
+      quizTitle: quiz.title,
+
     };
   } catch (err) {
     console.error("❌ Error generating quiz report:", err);

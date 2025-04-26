@@ -13,6 +13,8 @@ const {
 } = require("../utils/quizEvaluator")
 
 const {generateQuizReport} = require("../utils/generateQuizReport")
+const { recalculateModuleGrade } = require("../utils/recalculateHelper");
+const { recalculateCourseGrade } = require("../utils/recalculateCourseGrade");
 const {paginateQuery} = require('../utils/paginationHelper')
 
 
@@ -105,40 +107,42 @@ exports.generateQuiz = async (req, res) => {
       return errorResponse(res, "Quiz configuration missing in course.", httpStatusCodes.BAD_REQUEST);
     }
 
-    // ✅ Prepare AI prompt
     const prompt = `
-You are an expert quiz creator for e-learning platforms.
-
-Create a quiz based ONLY on the following module content. DO NOT include external information. Ensure accuracy and relevance to the content below.
-
-MODULE:
-Title: ${module.title}
-Description: ${module.description}
-Key Points:
-${module.keyPoints?.map((point, i) => `${i + 1}. ${point}`).join("\n")}
-
-Quiz Requirements:
-- Total questions: ${quizConfig.numberOfQuestions}
-- Allowed types: ${quizConfig.quizTypes.join(", ")}
-- Difficulty: ${quizConfig.difficultyLevel}
-- Return a valid JSON with the following structure:
-
-{
-  "title": "Quiz Title",
-  "description": "Short description of this quiz",
-  "questions": [
+    You are an expert quiz creator for e-learning platforms.
+    
+    Create a quiz based ONLY on the following module content. DO NOT include external information. Ensure accuracy and relevance to the content below.
+    
+    MODULE:
+    Title: ${module.title}
+    Description: ${module.description}
+    Key Points:
+    ${module.keyPoints?.map((point, i) => `${i + 1}. ${point}`).join("\n")}
+    
+    Quiz Requirements:
+    - Total questions: ${quizConfig.numberOfQuestions}
+    - Allowed types: ${quizConfig.quizTypes.join(", ")}
+    - Difficulty: ${quizConfig.difficultyLevel}
+    - Generate a relevant and catchy quiz title based on the module content.
+    - Write a short description (1-2 lines) for the quiz.
+    - Return a valid JSON with the following structure:
+    
     {
-      "questionText": "What is ...?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": "Option A",
-      "questionType": "MCQ"
+      "title": "Meaningful and Relevant Quiz Title",
+      "description": "Short description related to the quiz content",
+      "questions": [
+        {
+          "questionText": "What is ...?",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "correctAnswer": "Option A",
+          "questionType": "MCQ"
+        }
+      ]
     }
-  ]
-}
-
-ONLY return JSON. Do NOT include explanations, markdown, or comments.
-`;
-
+    
+    ONLY return JSON. Do NOT include explanations, markdown, or comments.
+    `;
+    
+    
     const response = await openai.chat.completions.create({
       model: "deepseek-chat",
       messages: [{ role: "user", content: prompt }],
@@ -156,13 +160,33 @@ ONLY return JSON. Do NOT include explanations, markdown, or comments.
     } catch (error) {
       return errorResponse(res, "Invalid AI-generated quiz format.", httpStatusCodes.INTERNAL_SERVER_ERROR);
     }
+    const shuffleOptionsAndUpdateAnswer = (question) => {
+      const originalOptions = [...question.options];
+      const correctAnswer = question.correctAnswer;
+    
+      const shuffledOptions = originalOptions.sort(() => Math.random() - 0.5);
+    
+      return {
+        ...question,
+        options: shuffledOptions,
+        correctAnswer, // shorthand property
+      };
+    };
+    const randomizedQuestions = generatedQuiz.questions.map((question) => {
+      if (question.options && question.options.length > 0) {
+        return shuffleOptionsAndUpdateAnswer(question);
+      }
+      return question;
+    });
+    
+    
 
     // ✅ Save and attach quiz
     const newQuiz = await Quiz.create({
       moduleId,
       title: generatedQuiz.title,
       description: generatedQuiz.description,
-      questions: generatedQuiz.questions,
+      questions: randomizedQuestions,
       totalQuestions: generatedQuiz.questions.length,
       maxScore: generatedQuiz.questions.length,
       timeLimit: quizConfig.isTimed ? quizConfig.timeDuration : null,
@@ -177,6 +201,7 @@ ONLY return JSON. Do NOT include explanations, markdown, or comments.
 
     await Module.findByIdAndUpdate(moduleId, {
       $push: { quizzes: newQuiz._id },
+      moduleStatus: 'on-track'
     });
 
     return successResponse(res, "Quiz generated successfully.", newQuiz);
@@ -272,8 +297,14 @@ exports.submitQuiz = async (req, res) => {
 
     await quiz.save();
 
-    // 🧠 Background AI Report Generation
+    // sBackground AI Report Generation
     generateQuizReport(userId, quiz._id, attemptNumber);
+    await recalculateModuleGrade(quiz.moduleId);
+    
+    const module = await Module.findById(quiz.moduleId); // ✅ Get Module
+    if (module) {
+      await recalculateCourseGrade(module.courseId);
+    }
 
     return successResponse(res, "Quiz submitted successfully.", {
       attemptNumber,
@@ -426,23 +457,41 @@ Do NOT return markdown or explanation.
     const aiText = raw.substring(jsonStart, jsonEnd + 1);
     const quizData = JSON.parse(aiText);
 
-    // ✅ Save the quiz
-    const newQuiz = await Quiz.create({
-      moduleId,
-      title: quizData.title,
-      description: quizData.description,
-      questions: quizData.questions,
-      totalQuestions: quizData.questions.length,
-      maxScore: quizData.questions.length,
-      timeLimit: course.quizConfig.isTimed ? course.quizConfig.timeDuration : null,
-      quizConfig: {  // 👈 Added this part
-        quizTypes: quizConfig.quizTypes,
-        numberOfQuestions: quizConfig.numberOfQuestions,
-        difficultyLevel: quizConfig.difficultyLevel,
-        isTimed: quizConfig.isTimed,
-        timeDuration: quizConfig.timeDuration
+    const shuffleOptionsAndUpdateAnswer = (question) => {
+      const originalOptions = [...question.options];
+      const correctAnswer = question.correctAnswer;
+    
+      const shuffledOptions = originalOptions.sort(() => Math.random() - 0.5);
+    
+      return {
+        ...question,
+        options: shuffledOptions,
+        correctAnswer, // shorthand property
+      };
+    };
+    const randomizedQuestions = generatedQuiz.questions.map((question) => {
+      if (question.options && question.options.length > 0) {
+        return shuffleOptionsAndUpdateAnswer(question);
       }
+      return question;
     });
+    
+const newQuiz = await Quiz.create({
+  moduleId,
+  title: quizData.title,
+  description: quizData.description,
+  questions: randomizedQuestions,
+  totalQuestions: quizData.questions.length,
+  maxScore: quizData.questions.length,
+  timeLimit: course.quizConfig.isTimed ? course.quizConfig.timeDuration : null,
+  quizConfig: {
+    quizTypes: course.quizConfig.quizTypes,
+    numberOfQuestions: course.quizConfig.numberOfQuestions,
+    difficultyLevel: course.quizConfig.difficultyLevel,
+    isTimed: course.quizConfig.isTimed,
+    timeDuration: course.quizConfig.timeDuration
+  }
+});
 
     // ✅ Update the topic in aiRecommendations with quizId and isQuizGenerated
     const topicToUpdate = report.aiRecommendations.topics.find(t => t._id.toString() === aiId);
@@ -452,6 +501,10 @@ Do NOT return markdown or explanation.
     }
 
     await report.save();
+    await Module.findByIdAndUpdate(moduleId, {
+      $push: { quizzes: newQuiz._id },
+      moduleStatus: 'on-track'
+    });
 
     return successResponse(res, "Adaptive quiz generated for topic.", {
       quizId: newQuiz._id,

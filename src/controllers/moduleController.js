@@ -8,6 +8,8 @@ const { httpStatusCodes } = require('../utils/httpStatusCodes');
 const OpenAI = require('openai');
 const config = require('../config/appConfig');
 const {paginateQuery} = require('../utils/paginationHelper')
+const updateModuleStatusIfDue = require('../utils/updateModuleStatusIfDue');
+const mongoose = require('mongoose')
 // ✅ Initialize DeepSeek API
 const openai = new OpenAI({
     baseURL: "https://api.deepseek.com",
@@ -55,6 +57,7 @@ exports.generateModules = async (req, res) => {
                 }
             }
         }
+        
 
         if (!extractedText.trim()) {
             return errorResponse(res, 'Failed to extract text from materials.', httpStatusCodes.BAD_REQUEST);
@@ -62,24 +65,39 @@ exports.generateModules = async (req, res) => {
 
         // ✅ Send extracted text to DeepSeek API
         const prompt = `
-        Based on the following text, generate structured learning modules with:
+        You are an expert course curriculum designer.
+        
+        Based on the following extracted text, create structured learning modules with:
         - Title
         - Description
-        - Key Learning Points (as bullet points)
+        - Key Learning Points (bullet points)
+        - Timeline in days (integer value)
         
-        Ensure the response is **strict JSON** format and modules must be no more than 10:
+        Guidelines:
+        - Distribute the course's total timeline of **${course.timeline} days** fairly across all modules.
+        - Each module should have a reasonable timeline (at least a few days).
+        - Ensure the timeline across all modules adds up to approximately ${course.timeline} days.
+        - Keep modules logically coherent, balanced, and relevant to the provided content.
+        
+        Output Format (STRICT JSON ONLY):
         [
             {
                 "title": "Module Title",
                 "description": "Short summary of the module",
-                "keyPoints": ["Point 1", "Point 2", "Point 3"]
+                "keyPoints": ["Point 1", "Point 2", "Point 3"],
+                "timeline": 7
             }
         ]
-
-        --- START TEXT ---
+        
+        Constraints:
+        - Maximum modules: 10
+        - Strict JSON only. No explanations, markdown, or extra text outside JSON.
+        - If timeline cannot divide perfectly, adjust by adding or removing 1-2 days to balance.
+        
+        --- START EXTRACTED TEXT ---
         ${extractedText}
-        --- END TEXT ---
-        `;
+        --- END EXTRACTED TEXT ---
+        `;        
 
         const response = await openai.chat.completions.create({
             model: "deepseek-chat",
@@ -96,6 +114,8 @@ exports.generateModules = async (req, res) => {
         } catch (error) {
             return errorResponse(res, 'Invalid JSON response from DeepSeek.', httpStatusCodes.INTERNAL_SERVER_ERROR);
         }
+        console.log(generatedModules);
+        
 
         // ✅ Assign module order and save them in DB
         let modules = [];
@@ -109,6 +129,7 @@ exports.generateModules = async (req, res) => {
                 order: currentOrder++,
                 keyPoints: moduleData.keyPoints || [],
                 materials: unprocessedMaterials.map(m => m._id), // Link used materials
+                timeline: moduleData.timeline || 2
             });
 
             modules.push(newModule);
@@ -117,15 +138,17 @@ exports.generateModules = async (req, res) => {
         await Course.findByIdAndUpdate(courseId, {
             $pullAll: { unprocessedMaterials: unprocessedMaterials.map(m => m._id) },
             $push: {
-                materials: { $each: unprocessedMaterials.map(m => m._id) },
-                modules: { $each: modules.map(m => m._id) }
+              materials: { $each: unprocessedMaterials.map(m => m._id) },
+              modules: { $each: modules.map(m => m._id) }
             },
             $set: {
-                "learningSummary.totalModules": (course.learningSummary.totalModules || 0) + modules.length,
-                courseStatus: 'on-track'
+              "learningSummary.totalModules": (course.learningSummary.totalModules || 0) + modules.length,
+              "learningSummary.completedModules": 0,
+              "learningSummary.firstIncompleteModule": modules.length > 0 ? modules[0]._id : null,
+              courseStatus: 'on-track'
             }
-        });
-        
+          });
+          
 
         return successResponse(res, 'Modules generated successfully.', { modules });
     } catch (error) {
@@ -179,33 +202,48 @@ exports.updateModules = async (req, res) => {
             return errorResponse(res, 'Failed to extract text from new materials.', httpStatusCodes.BAD_REQUEST);
         }
 
-        // ✅ Send extracted text to DeepSeek API
         const prompt = `
-        Based on the following text, generate additional structured learning modules with:
+        You are an expert course curriculum designer.
+        
+        Based on the newly provided extracted material, generate additional structured learning modules with:
         - Title
         - Description
-        - Key Learning Points (as bullet points)
-
-        Ensure the response is **strict JSON** format:
+        - Key Learning Points (bullet points)
+        - Timeline in days (integer value)
+        
+        Guidelines:
+        - These modules should expand and complement the existing course structure.
+        - Distribute a fair portion of the course's remaining timeline across these new modules.
+        - Each module should have a reasonable timeline (at least a few days).
+        - Timeline must reflect the depth and importance of the module content.
+        
+        Output Format (STRICT JSON ONLY):
         [
             {
                 "title": "Module Title",
                 "description": "Short summary of the module",
-                "keyPoints": ["Point 1", "Point 2", "Point 3"]
+                "keyPoints": ["Point 1", "Point 2", "Point 3"],
+                "timeline": 5
             }
         ]
-
-        --- START TEXT ---
+        
+        Constraints:
+        - Maximum modules: 10
+        - Strict JSON only. No explanations, markdown, or extra text outside JSON.
+        - Timeline (in days) must be an integer.
+        - If timeline cannot divide perfectly, balance by adding or subtracting 1-2 days.
+        
+        --- START NEW MATERIAL TEXT ---
         ${extractedText}
-        --- END TEXT ---
+        --- END NEW MATERIAL TEXT ---
         `;
-
+        
+                
         const response = await openai.chat.completions.create({
             model: "deepseek-chat",
             messages: [{ role: "user", content: prompt }],
             max_tokens: 2000,
         });
-
         let rawResponse = response.choices[0].message.content.trim();
         rawResponse = rawResponse.replace(/```json|```/g, "").trim();
 
@@ -214,7 +252,7 @@ exports.updateModules = async (req, res) => {
             generatedModules = JSON.parse(rawResponse);
         } catch (error) {
             return errorResponse(res, 'Invalid JSON response from DeepSeek.', httpStatusCodes.INTERNAL_SERVER_ERROR);
-        }
+        }        
 
         // ✅ Add new modules to the end of existing ones
         let modules = [];
@@ -228,6 +266,7 @@ exports.updateModules = async (req, res) => {
                 keyPoints: moduleData.keyPoints || [],
                 order: lastOrder++,
                 materials: newUnprocessedMaterials.map(m => m._id),
+                timeline: moduleData.timeline
             });
 
             modules.push(newModule);
@@ -255,10 +294,14 @@ exports.getModuleById = async (req, res) => {
             return errorResponse(res, 'Invalid Module ID format.', httpStatusCodes.BAD_REQUEST);
         }
 
-        // ✅ Fetch Module
-        const module = await Module.findById(moduleId).populate('materials quizzes');
+        let module = await Module.findById(moduleId).populate('materials quizzes');
         if (!module) {
-            return errorResponse(res, 'Module not found.', httpStatusCodes.NOT_FOUND);
+          return errorResponse(res, 'Module not found.', httpStatusCodes.NOT_FOUND);
+        }
+        
+        updateModuleStatusIfDue(module);
+        if (module.isModified && module.moduleStatus === 'late') {
+          await module.save(); // Save only if modified and status became 'late'
         }
 
         return successResponse(res, 'Module retrieved successfully.', module);
@@ -282,8 +325,14 @@ exports.getAllModulesByCourse = async (req, res) => {
         }
 
         // ✅ Fetch Modules for Course (Ordered)
-        const modules = await Module.find({ courseId }).sort({ order: 1 }).populate('materials quizzes');
+        let modules = await Module.find({ courseId }).sort({ order: 1 }).populate('materials quizzes');
 
+        for (const module of modules) {
+          updateModuleStatusIfDue(module);
+          if (module.moduleStatus === 'late') {
+            await module.save();
+          }
+        }
         return successResponse(res, 'Modules retrieved successfully.', { modules });
     } catch (error) {
         console.error('❌ Error fetching modules:', error);
@@ -312,6 +361,14 @@ exports.getAllModules = async (req, res) => {
   
       // Step 3: Paginate modules
       const paginatedModules = await paginateQuery(Module, query, page, limit);
+
+      for (const module of paginatedModules.data) {
+        updateModuleStatusIfDue(module);
+        if (module.moduleStatus === 'late') {
+          await module.save();
+        }
+      }
+      
   
       return successResponse(res, 'Modules for user retrieved successfully.', paginatedModules);
     } catch (error) {
@@ -320,3 +377,39 @@ exports.getAllModules = async (req, res) => {
     }
   };
   
+
+  /**
+ * @route PUT /api/v1/modules/:moduleId/mark-completed
+ * @desc Mark a module as completed
+ */
+exports.markModuleAsCompleted = async (req, res) => {
+    try {
+      const { moduleId } = req.params;
+  
+      // ✅ Validate Module ID
+      if (!mongoose.Types.ObjectId.isValid(moduleId)) {
+        return errorResponse(res, 'Invalid Module ID format.', httpStatusCodes.BAD_REQUEST);
+      }
+  
+      // ✅ Fetch Module
+      const module = await Module.findById(moduleId);
+      if (!module) {
+        return errorResponse(res, 'Module not found.', httpStatusCodes.NOT_FOUND);
+      }
+  
+      // ✅ Check if already completed
+      if (module.moduleStatus === 'completed') {
+        return errorResponse(res, 'Module is already marked as completed.', httpStatusCodes.BAD_REQUEST);
+      }
+  
+      // ✅ Mark as completed
+      module.moduleStatus = 'completed';
+      module.isCompleted = true;
+      await module.save();
+  
+      return successResponse(res, 'Module marked as completed successfully.', module);
+    } catch (error) {
+      console.error('❌ Error marking module as completed:', error);
+      return errorResponse(res, 'Internal server error.', httpStatusCodes.INTERNAL_SERVER_ERROR);
+    }
+  };
