@@ -67,7 +67,7 @@ exports.generateModules = async (req, res) => {
         - Description
         - Key Learning Points (as bullet points)
         
-        Ensure the response is **strict JSON** format:
+        Ensure the response is **strict JSON** format and modules must be no more than 10:
         [
             {
                 "title": "Module Title",

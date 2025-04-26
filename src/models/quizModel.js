@@ -26,7 +26,7 @@ const quizSchema = new mongoose.Schema({
       obtainedMarks: { type: Number, default: 0 },
       percentage: { type: String }, // e.g. "80%"
       isCompleted: { type: Boolean, default: true },
-      timeTaken: { type: Number, default: 0 }, // 🆕 Time in seconds
+      timeTaken: { type: Number, default: 0 }, // Time in seconds
       answers: [
         {
           questionId: { type: mongoose.Schema.Types.ObjectId, required: true },
@@ -37,6 +37,15 @@ const quizSchema = new mongoose.Schema({
     },
   ],
   gradingMethod: { type: String, enum: ['auto', 'manual'], default: 'auto' },
+
+  quizConfig: {
+    quizTypes: [{ type: String, enum: ['MCQ', 'Open-ended', 'True/False', 'Coding Exercises'] }],
+    numberOfQuestions: { type: Number, default: 10 },
+    difficultyLevel: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Easy' },
+    isTimed: { type: Boolean, default: false },
+    timeDuration: { type: Number, default: 30 } // in minutes
+  },
+
   createdAt: { type: Date, default: Date.now },
 });
 

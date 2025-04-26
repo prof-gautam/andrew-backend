@@ -166,6 +166,13 @@ ONLY return JSON. Do NOT include explanations, markdown, or comments.
       totalQuestions: generatedQuiz.questions.length,
       maxScore: generatedQuiz.questions.length,
       timeLimit: quizConfig.isTimed ? quizConfig.timeDuration : null,
+      quizConfig: {
+        quizTypes: quizConfig.quizTypes,
+        numberOfQuestions: quizConfig.numberOfQuestions,
+        difficultyLevel: quizConfig.difficultyLevel,
+        isTimed: quizConfig.isTimed,
+        timeDuration: quizConfig.timeDuration
+      }
     });
 
     await Module.findByIdAndUpdate(moduleId, {
@@ -428,6 +435,13 @@ Do NOT return markdown or explanation.
       totalQuestions: quizData.questions.length,
       maxScore: quizData.questions.length,
       timeLimit: course.quizConfig.isTimed ? course.quizConfig.timeDuration : null,
+      quizConfig: {  // 👈 Added this part
+        quizTypes: quizConfig.quizTypes,
+        numberOfQuestions: quizConfig.numberOfQuestions,
+        difficultyLevel: quizConfig.difficultyLevel,
+        isTimed: quizConfig.isTimed,
+        timeDuration: quizConfig.timeDuration
+      }
     });
 
     // ✅ Update the topic in aiRecommendations with quizId and isQuizGenerated
